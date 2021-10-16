@@ -1,0 +1,27 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "cppbuild",
+			"label": "C/C++: cpp 활성 파일 빌드",
+			"command": "/usr/bin/g++",
+			"args": [
+				"-g",
+				"${file}",
+				"-o",
+				"${workspaceFolder}/build/${fileBasenameNoExtension}"
+			],
+			"options": {
+				"cwd": "${fileDirname}"
+			},
+			"problemMatcher": [
+				"$gcc"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"detail": "컴파일러: /usr/bin/cpp"
+		}
+	]
+}
