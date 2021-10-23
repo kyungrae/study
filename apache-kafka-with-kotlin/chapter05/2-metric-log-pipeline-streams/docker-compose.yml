@@ -1,0 +1,8 @@
+version: "3.8"
+
+services:
+  metricbeat:
+    image: docker.elastic.co/beats/metricbeat:7.6.2
+    volumes:
+      - ./metricbeat.yml:/usr/share/metricbeat/metricbeat.yml:ro
+    network_mode: host

@@ -11,3 +11,4 @@ include(
     ":chapter05:1-web-page-event-pipeline:hdfs-kafka-consumer",
     ":chapter05:1-web-page-event-pipeline:elasticsearch-kafka-connector"
 )
+include(":chapter05:2-metric-log-pipeline-streams")
