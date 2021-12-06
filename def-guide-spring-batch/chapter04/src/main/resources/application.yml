@@ -6,3 +6,5 @@ spring:
     password: hama
   batch:
     initialize-schema: always
+    job:
+      names: conditionalStepLogicJobWithoutExternalizing
