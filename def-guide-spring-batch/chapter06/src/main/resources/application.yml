@@ -6,5 +6,5 @@ spring:
     password: hama
   batch:
     initialize-schema: always
-    job:
-      enabled: false
+#    job:
+#      enabled: false
