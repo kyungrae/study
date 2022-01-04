@@ -1,6 +1,5 @@
 package me.hama.transaction
 
-import me.hama.quartz.QuartzJobApplication
 import me.hama.transaction.batch.TransactionApplierProcessor
 import me.hama.transaction.batch.TransactionReader
 import me.hama.transaction.domain.AccountSummary
@@ -30,7 +29,6 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.SpringApplication
 import org.springframework.boot.WebApplicationType
 import org.springframework.boot.autoconfigure.SpringBootApplication
-import org.springframework.boot.runApplication
 import org.springframework.context.annotation.Bean
 import org.springframework.core.io.Resource
 import javax.sql.DataSource
@@ -39,7 +37,8 @@ import javax.sql.DataSource
 @SpringBootApplication
 class TransactionProcessingJob(
     private val jobBuilderFactory: JobBuilderFactory,
-    private val stepBuilderFactory: StepBuilderFactory
+    private val stepBuilderFactory: StepBuilderFactory,
+    private val dataSource: DataSource
 ) {
     @Bean
     @StepScope
@@ -60,23 +59,24 @@ class TransactionProcessingJob(
     }
 
     @Bean
-    fun transactionWriter(dataSource: DataSource?): JdbcBatchItemWriter<Transaction> {
+    fun transactionWriter(): JdbcBatchItemWriter<Transaction> {
         return JdbcBatchItemWriterBuilder<Transaction>()
             .itemSqlParameterSourceProvider(BeanPropertyItemSqlParameterSourceProvider())
             .sql(
                 "INSERT INTO TRANSACTION (ACCOUNT_SUMMARY_ID, TIMESTAMP, AMOUNT) " +
                         "VALUES ((SELECT ID FROM ACCOUNT_SUMMARY WHERE ACCOUNT_NUMBER = :accountNumber), :timestamp, :amount)"
             )
-            .dataSource(dataSource!!)
+            .dataSource(dataSource)
             .build()
     }
 
     @Bean
     fun importTransactionFileStep(): Step {
         return stepBuilderFactory["importTransactionFileStep"]
-            .chunk<Transaction, Transaction>(100)
+            .startLimit(2)
+            .chunk<Transaction, Transaction>(5)
             .reader(transactionReader())
-            .writer(transactionWriter(null))
+            .writer(transactionWriter())
             .allowStartIfComplete(true)
             .listener(transactionReader())
             .build()
@@ -84,10 +84,10 @@ class TransactionProcessingJob(
 
     @Bean
     @StepScope
-    fun accountSummaryReader(dataSource: DataSource?): JdbcCursorItemReader<AccountSummary> {
+    fun accountSummaryReader(): JdbcCursorItemReader<AccountSummary> {
         return JdbcCursorItemReaderBuilder<AccountSummary>()
             .name("accountSummaryReader")
-            .dataSource(dataSource!!)
+            .dataSource(dataSource)
             .sql(
                 "SELECT ID, ACCOUNT_NUMBER, CURRENT_BALANCE FROM ACCOUNT_SUMMARY A " +
                         "WHERE A.ID IN (SELECT DISTINCT T.ACCOUNT_SUMMARY_ID FROM TRANSACTION T) " +
@@ -104,19 +104,19 @@ class TransactionProcessingJob(
     }
 
     @Bean
-    fun transactionDao(dataSource: DataSource?): TransactionDao {
-        return TransactionDao(dataSource!!)
+    fun transactionDao(): TransactionDao {
+        return TransactionDao(dataSource)
     }
 
     @Bean
     fun transactionApplierProcessor(): TransactionApplierProcessor {
-        return TransactionApplierProcessor(transactionDao(null))
+        return TransactionApplierProcessor(transactionDao())
     }
 
     @Bean
-    fun accountSummaryWriter(dataSource: DataSource?): JdbcBatchItemWriter<AccountSummary> {
+    fun accountSummaryWriter(): JdbcBatchItemWriter<AccountSummary> {
         return JdbcBatchItemWriterBuilder<AccountSummary>()
-            .dataSource(dataSource!!)
+            .dataSource(dataSource)
             .itemSqlParameterSourceProvider(BeanPropertyItemSqlParameterSourceProvider())
             .sql("UPDATE ACCOUNT_SUMMARY SET CURRENT_BALANCE = :currentBalance WHERE ACCOUNT_NUMBER = :accountNumber")
             .build()
@@ -125,10 +125,10 @@ class TransactionProcessingJob(
     @Bean
     fun applyTransactionStep(): Step {
         return stepBuilderFactory["applyTransactionStep"]
-            .chunk<AccountSummary, AccountSummary>(100)
-            .reader(accountSummaryReader(null))
+            .chunk<AccountSummary, AccountSummary>(5)
+            .reader(accountSummaryReader())
             .processor(transactionApplierProcessor())
-            .writer(accountSummaryWriter(null))
+            .writer(accountSummaryWriter())
             .build()
     }
 
@@ -151,8 +151,8 @@ class TransactionProcessingJob(
     @Bean
     fun generateAccountSummaryStep(): Step {
         return stepBuilderFactory["generateAccountSummaryStep"]
-            .chunk<AccountSummary, AccountSummary>(100)
-            .reader(accountSummaryReader(null))
+            .chunk<AccountSummary, AccountSummary>(5)
+            .reader(accountSummaryReader())
             .writer(accountSummaryFileWriter(null))
             .build()
     }
@@ -160,11 +160,14 @@ class TransactionProcessingJob(
     @Bean
     fun transactionJob(): Job {
         return jobBuilderFactory["transactionJob"]
+            .preventRestart()
             .start(importTransactionFileStep())
-            .on("STOPPED").stopAndRestart(importTransactionFileStep())
-            .from(importTransactionFileStep()).on("*").to(applyTransactionStep())
-            .from(applyTransactionStep()).next(generateAccountSummaryStep())
-            .end()
+//            .on("STOPPED").stopAndRestart(importTransactionFileStep())
+//            .from(importTransactionFileStep()).on("*").to(applyTransactionStep())
+//            .from(applyTransactionStep()).next(generateAccountSummaryStep())
+//            .end()
+            .next(applyTransactionStep())
+            .next(generateAccountSummaryStep())
             .build()
     }
 }

@@ -4,8 +4,10 @@ import me.hama.transaction.domain.Transaction
 import org.springframework.batch.core.ExitStatus
 import org.springframework.batch.core.StepExecution
 import org.springframework.batch.core.annotation.AfterStep
+import org.springframework.batch.core.annotation.BeforeStep
 import org.springframework.batch.item.ExecutionContext
 import org.springframework.batch.item.ItemStreamReader
+import org.springframework.batch.item.ParseException
 import org.springframework.batch.item.file.transform.FieldSet
 
 open class TransactionReader(
@@ -13,6 +15,7 @@ open class TransactionReader(
 ) : ItemStreamReader<Transaction> {
     private var recordCount: Int = 0
     private var expectedRecordCount: Int = 0
+    private lateinit var stepExecution: StepExecution
 
     override fun open(executionContext: ExecutionContext) {
         fieldSetReader.open(executionContext)
@@ -27,6 +30,7 @@ open class TransactionReader(
     }
 
     override fun read(): Transaction? {
+//        if (recordCount == 25) throw ParseException("This isn't what I hoped to happen.")
         return process(fieldSetReader.read())
     }
 
@@ -43,14 +47,23 @@ open class TransactionReader(
                 recordCount++
             } else {
                 expectedRecordCount = fieldSet.readInt(0)
+
+                if (recordCount != expectedRecordCount) {
+                    stepExecution.setTerminateOnly()
+                }
             }
         }
         return result
     }
 
-    @AfterStep
-    fun afterStep(execution: StepExecution): ExitStatus {
-        return if (recordCount == expectedRecordCount) execution.exitStatus
-        else ExitStatus.STOPPED
+    @BeforeStep
+    fun beforeStep(execution: StepExecution) {
+        this.stepExecution = execution
     }
+
+//    @AfterStep
+//    fun afterStep(execution: StepExecution): ExitStatus {
+//        return if (recordCount == expectedRecordCount) execution.exitStatus
+//        else ExitStatus.STOPPED
+//    }
 }
