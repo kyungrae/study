@@ -40,8 +40,8 @@ class MultiResourceJob(
     }
 
     @Bean
-    fun customerFileReader(): ResourceAwareCustomerFileReader {
-        return ResourceAwareCustomerFileReader(customerItemReader())
+    fun customerFileReader(): CustomerFileReader {
+        return CustomerFileReader(customerItemReader())
     }
 
     @Bean

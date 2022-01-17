@@ -4,7 +4,7 @@ import org.springframework.batch.item.ExecutionContext
 import org.springframework.batch.item.file.ResourceAwareItemReaderItemStream
 import org.springframework.core.io.Resource
 
-class ResourceAwareCustomerFileReader(
+class CustomerFileReader(
     private val delegate: ResourceAwareItemReaderItemStream<Any>
 ) : ResourceAwareItemReaderItemStream<Customer> {
     private var curItem: Any? = null
