@@ -1,5 +1,7 @@
 package me.hama.database.jdbc
 
+import me.hama.database.Customer
+import me.hama.database.CustomerRowMapper
 import org.springframework.batch.core.Job
 import org.springframework.batch.core.Step
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing

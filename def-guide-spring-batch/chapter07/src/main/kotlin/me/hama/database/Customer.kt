@@ -1,4 +1,4 @@
-package me.hama.database.jdbc
+package me.hama.database
 
 class Customer(
     val id: Long,

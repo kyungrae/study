@@ -1,4 +1,4 @@
-package me.hama.database.jdbc
+package me.hama.database
 
 import org.springframework.jdbc.core.RowMapper
 import java.sql.ResultSet
