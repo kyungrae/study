@@ -11,11 +11,11 @@ spec:
           memory: "128Mi"
           cpu: "500m"
       env:
-        - name: fortune-config
+        - name: INTERVAL
           valueFrom:
             configMapKeyRef:
               name: fortune-config
-              key: my-nginx-conf.conf
+              key: sleep-interval
       volumeMounts:
         - name: html
           mountPath: /var/htdocs

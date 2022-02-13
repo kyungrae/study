@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: curl
+spec:
+  containers:
+    - name: main
+      image: alpine/curl
+      command:
+        - "sleep"
+        - "9999999"
+      resources:
+        limits:
+          memory: "6Mi"
+          cpu: "100m"
