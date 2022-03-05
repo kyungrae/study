@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubia
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: kubia
+  template:
+    metadata:
+      labels:
+        app: kubia
+    spec:
+      containers:
+        - name: nodejs
+          image: kyungrae/kubia:v1
+          resources:
+            limits:
+              memory: "32Mi"
+              cpu: "125m"
+          ports:
+            - containerPort: 8080
