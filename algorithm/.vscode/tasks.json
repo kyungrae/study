@@ -3,10 +3,11 @@
 	"tasks": [
 		{
 			"type": "cppbuild",
-			"label": "C/C++: cpp 활성 파일 빌드",
-			"command": "/usr/bin/g++",
+			"label": "C/C++: clang 활성 파일 빌드",
+			"command": "/usr/bin/clang++",
 			"args": [
 				"-g",
+				"-std=c++17",
 				"${file}",
 				"-o",
 				"${workspaceFolder}/build/${fileBasenameNoExtension}"
@@ -21,7 +22,7 @@
 				"kind": "build",
 				"isDefault": true
 			},
-			"detail": "컴파일러: /usr/bin/cpp"
+			"detail": "컴파일러: /usr/bin/clang"
 		}
 	]
 }
