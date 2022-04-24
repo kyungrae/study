@@ -1,7 +1,5 @@
 package me.hama.database.jpa
 
-import me.hama.database.hibernate.Customer
-import org.hibernate.SessionFactory
 import org.springframework.batch.core.Job
 import org.springframework.batch.core.Step
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing
@@ -9,9 +7,7 @@ import org.springframework.batch.core.configuration.annotation.JobBuilderFactory
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory
 import org.springframework.batch.core.configuration.annotation.StepScope
 import org.springframework.batch.item.ItemWriter
-import org.springframework.batch.item.database.HibernatePagingItemReader
 import org.springframework.batch.item.database.JpaPagingItemReader
-import org.springframework.batch.item.database.builder.HibernatePagingItemReaderBuilder
 import org.springframework.batch.item.database.builder.JpaPagingItemReaderBuilder
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.SpringBootApplication

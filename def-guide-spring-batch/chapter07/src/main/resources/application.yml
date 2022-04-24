@@ -20,9 +20,10 @@ spring:
         implicit-strategy: "org.hibernate.boot.model.naming.ImplicitNamingStrategyLegacyJpaImpl"
         physical-strategy: "org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl"
 
-#logging:
-#  level:
-#    org:
-#      springframework:
-#        jdbc: debug
-#        batch: debug
+logging:
+  level:
+    org:
+      springframework:
+        jdbc: debug
+        jpa: debug
+        batch: debug
