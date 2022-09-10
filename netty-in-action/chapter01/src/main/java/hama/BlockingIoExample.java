@@ -12,8 +12,7 @@ public class BlockingIoExample {
         ServerSocket serverSocket = new ServerSocket(portNumber);
         Socket clientSocket = serverSocket.accept();
 
-        BufferedReader in = new BufferedReader(
-                new InputStreamReader(clientSocket.getInputStream()));
+        BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
         PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true);
 
         String request, response;
