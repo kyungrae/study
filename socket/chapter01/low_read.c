@@ -24,6 +24,6 @@ int main(void)
 void error_handling(char *message)
 {
     fputs(message, stderr);
-    fputc('n', stderr);
+    fputc('\n', stderr);
     exit(1);
 }
