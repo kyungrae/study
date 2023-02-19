@@ -7,6 +7,8 @@
 
 #include "../common/error_handle.h"
 
+#define BUF_SIZE 1024
+
 int main(int argc, char *argv[])
 {
     if (argc != 3)
@@ -24,23 +26,26 @@ int main(int argc, char *argv[])
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = inet_addr(argv[1]);
     serv_addr.sin_port = htons(atoi(argv[2]));
+
     if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1)
         error_handling("connect() error");
+    else
+        puts("Connected........");
 
-    int idx = 0;
-    int read_len = 0;
-    int str_len = 0;
-    char message[30];
-    while (read_len = read(sock, &message[idx++], 1))
+    while (1)
     {
-        if (read_len == -1)
-            error_handling("read() error!");
-        str_len += read_len;
+        char message[BUF_SIZE];
+        fputs("Input message(Q to quit): ", stdout);
+        fgets(message, BUF_SIZE, stdin);
+
+        if (!strcmp(message, "q\n") || !strcmp(message, "Q\n"))
+            break;
+
+        write(sock, message, strlen(message));
+        int str_len = read(sock, message, BUF_SIZE - 1);
+        message[str_len] = 0;
+        printf("Message from server: %s", message);
     }
-
-    printf("Message from server: %s \n", message);
-    printf("Function read call count: %d \n", str_len);
-
     close(sock);
     return 0;
 }

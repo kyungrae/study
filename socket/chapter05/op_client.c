@@ -7,6 +7,10 @@
 
 #include "../common/error_handle.h"
 
+#define BUF_SIZE 1024
+#define RLT_SIZE 4
+#define OPSZ 4
+
 int main(int argc, char *argv[])
 {
     if (argc != 3)
@@ -23,24 +27,35 @@ int main(int argc, char *argv[])
     memset(&serv_addr, 0, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = inet_addr(argv[1]);
-    serv_addr.sin_port = htons(atoi(argv[2]));
-    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1)
-        error_handling("connect() error");
+    serv_addr.sin_port = htons(argv[2]);
 
-    int idx = 0;
-    int read_len = 0;
-    int str_len = 0;
-    char message[30];
-    while (read_len = read(sock, &message[idx++], 1))
+    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1)
+        error_handling("connect() error!");
+    else
+        puts("Connected........");
+
+    fputs("Operand count: ", stdout);
+    int opnd_cnt;
+    scanf("%d", &opnd_cnt);
+
+    char opmsg[BUF_SIZE];
+    opmsg[0] = (char)opnd_cnt;
+
+    for (int i = 0; i < opnd_cnt; i++)
     {
-        if (read_len == -1)
-            error_handling("read() error!");
-        str_len += read_len;
+        printf("Operand %d: ", i + 1);
+        scanf("%d", (int *)&opmsg[i * OPSZ + 1]);
     }
 
-    printf("Message from server: %s \n", message);
-    printf("Function read call count: %d \n", str_len);
+    fgetc(stdin);
+    fputs("Operator: ", stdout);
+    scanf("%c", &opmsg[opnd_cnt * OPSZ + 1]);
+    write(sock, opmsg, opnd_cnt * OPSZ + 2);
 
+    int result;
+    read(sock, &result, RLT_SIZE);
+    printf("Operation result: %d \n", result);
     close(sock);
+
     return 0;
 }

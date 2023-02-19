@@ -4,6 +4,8 @@
         "socket.h": "c",
         "inet.h": "c",
         "_endian.h": "c",
-        "endian.h": "c"
+        "endian.h": "c",
+        "error_handle.h": "c",
+        "stdlib.h": "c"
     }
 }

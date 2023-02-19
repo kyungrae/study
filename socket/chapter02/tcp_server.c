@@ -5,7 +5,7 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 
-void error_handling(char *message);
+#include "../common/error_handle.h"
 
 int main(int argc, char *argv[])
 {
@@ -43,11 +43,4 @@ int main(int argc, char *argv[])
     close(serv_sock);
 
     return 0;
-}
-
-void error_handling(char *message)
-{
-    fputs(message, stderr);
-    fputc('\n', stderr);
-    exit(1);
 }

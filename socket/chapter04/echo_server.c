@@ -7,11 +7,13 @@
 
 #include "../common/error_handle.h"
 
+#define BUF_SIZE 1024
+
 int main(int argc, char *argv[])
 {
     if (argc != 2)
     {
-        printf("Usage : %s <port>\n", argv[0]);
+        printf("Usage %s <port>\n", argv[0]);
         exit(1);
     }
 
@@ -31,16 +33,23 @@ int main(int argc, char *argv[])
     if (listen(serv_sock, 5) == -1)
         error_handling("listen() error");
 
-    struct sockaddr_in clnt_addr;
-    socklen_t clnt_addr_size = sizeof(clnt_addr);
-    int clnt_sock = accept(serv_sock, (struct sockaddr *)&clnt_addr, &clnt_addr_size);
-    if (clnt_sock == -1)
-        error_handling("accept() error");
+    for (int i = 0; i < 5; i++)
+    {
+        struct sockaddr_in clnt_addr;
+        socklen_t clnt_addr_size = sizeof(clnt_addr);
+        int clnt_sock = accept(serv_sock, (struct sockaddr *)&clnt_addr, &clnt_addr_size);
+        if (clnt_sock == -1)
+            error_handling("accetp() error");
+        else
+            printf("Connected client %d \n", i + 1);
 
-    char message[] = "Hello World!";
-    write(clnt_sock, message, sizeof(message));
-    close(clnt_sock);
+        int str_len;
+        char message[BUF_SIZE];
+        while ((str_len = read(clnt_sock, message, BUF_SIZE)) != 0)
+            write(clnt_sock, message, str_len);
+        close(clnt_sock);
+    }
+
     close(serv_sock);
-
     return 0;
 }
