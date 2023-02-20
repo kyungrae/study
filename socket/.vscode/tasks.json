@@ -9,7 +9,7 @@
                 "-fansi-escape-codes",
                 "-g",
                 "${file}",
-                "${workspaceFolder}/common/error_handle.c",
+                "${workspaceFolder}/lib/*.c",
                 "-o",
 				"${fileDirname}/build/${fileBasenameNoExtension}"
             ],

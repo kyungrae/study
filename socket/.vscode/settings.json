@@ -7,6 +7,8 @@
         "endian.h": "c",
         "error_handle.h": "c",
         "stdlib.h": "c",
-        "__locale": "c"
+        "__locale": "c",
+        "string.h": "c",
+        "stdio.h": "c"
     }
 }

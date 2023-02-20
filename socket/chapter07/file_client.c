@@ -7,17 +7,18 @@
 
 #include "../lib/error_handle.h"
 
+#define BUF_SIZE 30
+
 int main(int argc, char *argv[])
 {
     if (argc != 3)
     {
-        printf("Usage : %s <IP> <port>\n", argv[0]);
+        printf("Usage: %s <IP> <port>\n", argv[0]);
         exit(1);
     }
 
+    FILE *fp = fopen("receive.dat", "wb");
     int sock = socket(PF_INET, SOCK_STREAM, 0);
-    if (sock == -1)
-        error_handling("socket() error");
 
     struct sockaddr_in serv_addr;
     memset(&serv_addr, 0, sizeof(serv_addr));
@@ -26,14 +27,17 @@ int main(int argc, char *argv[])
     serv_addr.sin_port = htons(atoi(argv[2]));
 
     if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1)
-        error_handling("connect() error");
+        error_handling("connect error()");
 
-    char message[30];
-    int str_len = read(sock, message, sizeof(message) - 1);
-    if (str_len == -1)
-        error_handling("read() error!");
+    int read_cnt;
+    char buf[BUF_SIZE];
+    while ((read_cnt = read(sock, buf, BUF_SIZE)) != 0)
+        fwrite((void *)buf, 1, read_cnt, fp);
 
-    printf("Message from server: %s \n", message);
+    puts("Received file data");
+    write(sock, "Thank you", 10);
+    fclose(fp);
     close(sock);
+
     return 0;
 }

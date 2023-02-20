@@ -7,17 +7,18 @@
 
 #include "../lib/error_handle.h"
 
+#define BUF_SIZE 30
+
 int main(int argc, char *argv[])
 {
     if (argc != 2)
     {
-        printf("Usage : %s <port>\n", argv[0]);
+        printf("Usage: %s <port>\n", argv[0]);
         exit(1);
     }
 
+    FILE *fp = fopen("../file_server.c", "rb");
     int serv_sock = socket(PF_INET, SOCK_STREAM, 0);
-    if (serv_sock == -1)
-        error_handling("socket() error");
 
     struct sockaddr_in serv_addr;
     memset(&serv_addr, 0, sizeof(serv_addr));
@@ -29,16 +30,29 @@ int main(int argc, char *argv[])
         error_handling("bind() error");
 
     if (listen(serv_sock, 5) == -1)
-        error_handling("listen() error");
+        error_handling("listen() errror");
 
     struct sockaddr_in clnt_addr;
-    socklen_t clnt_addr_size = sizeof(clnt_addr);
-    int clnt_sock = accept(serv_sock, (struct sockaddr *)&clnt_addr, &clnt_addr_size);
-    if (clnt_sock == -1)
-        error_handling("accept() error");
+    socklen_t clnt_addr_sz = sizeof(clnt_addr);
+    int clnt_sock = accept(serv_sock, (struct sockaddr *)&clnt_addr, &clnt_addr_sz);
 
-    char message[] = "Hello World!";
-    write(clnt_sock, message, sizeof(message));
+    char buf[BUF_SIZE];
+    while (1)
+    {
+        int read_cnt = fread((void *)buf, 1, BUF_SIZE, fp);
+        if (read_cnt < BUF_SIZE)
+        {
+            write(clnt_sock, buf, read_cnt);
+            break;
+        }
+        write(clnt_sock, buf, BUF_SIZE);
+    }
+
+    shutdown(clnt_sock, SHUT_WR);
+    read(clnt_sock, buf, BUF_SIZE);
+    printf("Message from client: %s \n", buf);
+
+    fclose(fp);
     close(clnt_sock);
     close(serv_sock);
 
