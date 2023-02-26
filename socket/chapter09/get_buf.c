@@ -2,8 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/socket.h>
-
-#include "../lib/error_handle.h"
+#include "../lib/common.h"
 
 int main(int argc, char *argv[])
 {
@@ -12,13 +11,13 @@ int main(int argc, char *argv[])
     socklen_t len = sizeof(send_buf);
     int state = getsockopt(sock, SOL_SOCKET, SO_SNDBUF, (void *)&send_buf, &len);
     if (state)
-        error_handling("getsockopt() error");
+        error_handle("getsockopt() error");
 
     int recv_buf;
     len = sizeof(recv_buf);
     state = getsockopt(sock, SOL_SOCKET, SO_RCVBUF, (void *)&recv_buf, &len);
     if (state)
-        error_handling("getsockopt() error");
+        error_handle("getsockopt() error");
 
     printf("Input buffer size: %d \n", send_buf);
     printf("Output buffer size: %d \n", recv_buf);

@@ -9,6 +9,7 @@
         "stdlib.h": "c",
         "__locale": "c",
         "string.h": "c",
-        "stdio.h": "c"
+        "stdio.h": "c",
+        "common.h": "c"
     }
 }

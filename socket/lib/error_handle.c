@@ -1,8 +1,0 @@
-#include "error_handle.h"
-
-void error_handling(char *message)
-{
-    fputs(message, stderr);
-    fputc('\n', stderr);
-    exit(1);
-}

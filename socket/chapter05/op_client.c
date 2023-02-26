@@ -4,8 +4,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
-
-#include "../lib/error_handle.h"
+#include "../lib/common.h"
 
 #define BUF_SIZE 1024
 #define RLT_SIZE 4
@@ -21,7 +20,7 @@ int main(int argc, char *argv[])
 
     int sock = socket(PF_INET, SOCK_STREAM, 0);
     if (sock == -1)
-        error_handling("socket() error");
+        error_handle("socket() error");
 
     struct sockaddr_in serv_addr;
     memset(&serv_addr, 0, sizeof(serv_addr));
@@ -30,7 +29,7 @@ int main(int argc, char *argv[])
     serv_addr.sin_port = htons(argv[2]);
 
     if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1)
-        error_handling("connect() error!");
+        error_handle("connect() error!");
     else
         puts("Connected........");
 

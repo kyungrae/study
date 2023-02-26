@@ -2,8 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/socket.h>
-
-#include "../lib/error_handle.h"
+#include "../lib/common.h"
 
 int main(int argc, char *agrv[])
 {
@@ -16,12 +15,12 @@ int main(int argc, char *agrv[])
 
     int state = getsockopt(tcp_sock, SOL_SOCKET, SO_TYPE, (void *)&sock_type, &optlen);
     if (state)
-        error_handling("getsockopt() error!");
+        error_handle("getsockopt() error!");
     printf("Socket type one: %d \n", sock_type);
 
     state = getsockopt(udp_sock, SOL_SOCKET, SO_TYPE, (void *)&sock_type, &optlen);
     if (state)
-        error_handling("getsockopt() error!");
+        error_handle("getsockopt() error!");
     printf("Socket type two: %d \n", sock_type);
 
     return 0;

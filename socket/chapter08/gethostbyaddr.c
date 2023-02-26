@@ -4,8 +4,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-
-#include "../lib/error_handle.h"
+#include "../lib/common.h"
 
 int main(int argc, char *argv[])
 {
@@ -20,7 +19,7 @@ int main(int argc, char *argv[])
     addr.sin_addr.s_addr = inet_addr(argv[1]);
     struct hostent *host = gethostbyaddr((char *)&addr.sin_addr, 4, AF_INET);
     if (!host)
-        error_handling("gethost... error");
+        error_handle("gethost... error");
 
     printf("Official name: %s \n", host->h_name);
     for (int i = 0; host->h_aliases[i]; i++)

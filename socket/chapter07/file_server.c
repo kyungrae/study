@@ -4,8 +4,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
-
-#include "../lib/error_handle.h"
+#include "../lib/common.h"
 
 #define BUF_SIZE 30
 
@@ -27,10 +26,10 @@ int main(int argc, char *argv[])
     serv_addr.sin_port = htons(atoi(argv[1]));
 
     if (bind(serv_sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1)
-        error_handling("bind() error");
+        error_handle("bind() error");
 
     if (listen(serv_sock, 5) == -1)
-        error_handling("listen() errror");
+        error_handle("listen() errror");
 
     struct sockaddr_in clnt_addr;
     socklen_t clnt_addr_sz = sizeof(clnt_addr);

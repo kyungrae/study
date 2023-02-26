@@ -4,8 +4,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
-
-#include "../lib/error_handle.h"
+#include "../lib/common.h"
 
 #define BUF_SIZE 1024
 #define OPSZ 4
@@ -22,7 +21,7 @@ int main(int argc, char *argv[])
 
     int serv_sock = socket(PF_INET, SOCK_STREAM, 0);
     if (serv_sock == -1)
-        error_handling("socket() error");
+        error_handle("socket() error");
 
     struct sockaddr_in serv_addr;
     memset(&serv_addr, 0, sizeof(serv_addr));
@@ -31,9 +30,9 @@ int main(int argc, char *argv[])
     serv_addr.sin_port = htons(atoi(argv[1]));
 
     if (bind(serv_sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1)
-        error_handling("bind() error");
+        error_handle("bind() error");
     if (listen(serv_sock, 5) == -1)
-        error_handling("listen() errror");
+        error_handle("listen() errror");
 
     for (int i = 0; i < 5; i++)
     {

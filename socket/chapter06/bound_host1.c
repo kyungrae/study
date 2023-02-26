@@ -4,8 +4,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
-
-#include "../lib/error_handle.h"
+#include "../lib/common.h"
 
 #define BUF_SIZE 30
 
@@ -19,7 +18,7 @@ int main(int argc, char *argv[])
 
     int serv_sock = socket(PF_INET, SOCK_DGRAM, 0);
     if (serv_sock == -1)
-        error_handling("UDP socket creation error");
+        error_handle("UDP socket creation error");
 
     struct sockaddr_in serv_addr;
     memset(&serv_addr, 0, sizeof(serv_addr));
@@ -28,7 +27,7 @@ int main(int argc, char *argv[])
     serv_addr.sin_port = htons(atoi(argv[1]));
 
     if (bind(serv_sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1)
-        error_handling("bind() error");
+        error_handle("bind() error");
 
     for (int i = 0; i < 3; i++)
     {
