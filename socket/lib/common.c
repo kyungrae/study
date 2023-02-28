@@ -15,3 +15,11 @@ void timeout(int sig)
         puts("Time out!");
     alarm(2);
 }
+
+void read_childproc(int sig)
+{
+    pid_t pid;
+    int status;
+    pid = waitpid(-1, &status, WNOHANG);
+    printf("removed process id: %d \n", pid);
+}
