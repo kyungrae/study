@@ -10,6 +10,8 @@
         "__locale": "c",
         "string.h": "c",
         "stdio.h": "c",
-        "common.h": "c"
+        "common.h": "c",
+        "istream": "c",
+        "locale": "c"
     }
 }
