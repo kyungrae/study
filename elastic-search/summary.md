@@ -5,34 +5,65 @@
 ### 에제 파일 다운로드
 
 ```bash
+## Download snapshot
 wget https://github.com/javacafe-project/elastic-book-snapshot/raw/master/book_backup.zip --no-check-certificate
 
+## Unzip
 unzip book_backup.zip -d ./backup
 ```
 
-### elastic search 실행 & snapshot 데이터 활성화
+### elastic search 실행
 
 ```bash
-## elastic search 실행 & 스냅샷 실행
+## Run elasticsearch cluster & kibana
 docker-compose up -d
 
+## Copy security certificates from container to local machine
 docker cp elastic-search-es01-1:/usr/share/elasticsearch/config/certs/es01/es01.crt .
+```
 
-curl -XPUT --cacert es01.crt -u elastic https://localhost:9200/_snapshot/javacafe -d '{
-    "type": "fs",
-    "settings": "{
-        "location": "/usr/share/elasticsearch/backup/search_example",
-        "compress": true
-    }
-}'
+### snaptshot 활성화 & 복구
 
-curl -XPUT --cacert es01.crt -u elastic https://localhost:9200/_snapshot/apache-web-log -d '{
+```bash
+## Register snapshot repository
+curl -XPUT --cacert es01.crt -u elastic:hamakim https://localhost:9200/_snapshot/javacafe \
+  -H 'Content-Type: application/json' \
+  -d '{ 
     "type": "fs",
-    "settings": "{
-        "location": "/usr/share/elasticsearch/backup/agg_example",
-        "compress": true
+    "settings": {
+      "location": "/usr/share/elasticsearch/backup/search_example",
+      "compress": true
     }
-}'
+  }'
+
+curl -XPUT --cacert es01.crt -u elastic:hamakim https://localhost:9200/_snapshot/apache-web-log \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "type": "fs",
+    "settings": {
+      "location": "/usr/share/elasticsearch/backup/agg_example",
+      "compress": true
+    }
+  }'
+
+## Restore snapsot
+curl -XPOST --cacert es01.crt -u elastic:hamakim _snapshot/javacafe/movie-search/_restore\
+  -H 'Content-Type: application/json' \
+  -d '{
+    "indices": "movie_search"
+  }'
+
+curl -XPOST --cacert es01.crt -u elastic:hamakim _snapshot/apache-web-log/default/_restore\
+  -H 'Content-Type: application/json' \
+  -d '{
+    "indices": "apache-web-log"
+  }'
+
+curl -XPOST --cacert es01.crt -u elastic:hamakim _snapshot/apache-web-log/applied-mapping/_restore\
+  -H 'Content-Type: application/json' \
+  -d '{
+    "indices": "apache-web-log-applied-mapping"
+  }'
 ```
 
 ## 2. 엘라스틱서치 살펴보기
@@ -61,3 +92,14 @@ curl -XPUT --cacert es01.crt -u elastic https://localhost:9200/_snapshot/apache-
   - 클러스터 관련 요청은 마스터 노드에 전달, 데이터 관련 요청은 데이터 노드에 전달
 - ingest node
   - document의 전처리 작업
+
+## 3. 데이터 모델링
+
+- 매핑 파라미터
+  - analyzer
+  - normalizer
+- 메타 필드
+  - _index
+  - _id
+  - _source
+  - _routing
