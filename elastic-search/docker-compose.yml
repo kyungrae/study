@@ -71,6 +71,7 @@ services:
       - certs:/usr/share/elasticsearch/config/certs
       - esdata01:/usr/share/elasticsearch/data
       - ./backup:/usr/share/elasticsearch/backup
+      - ./config/analysis:/usr/share/elasticsearch/config/analysis
     ports:
       - ${ES_PORT}:9200
     environment:
@@ -115,6 +116,7 @@ services:
       - certs:/usr/share/elasticsearch/config/certs
       - esdata02:/usr/share/elasticsearch/data
       - ./backup:/usr/share/elasticsearch/backup
+      - ./config/analysis:/usr/share/elasticsearch/config/analysis
     environment:
       - node.name=es02
       - cluster.name=${CLUSTER_NAME}
@@ -156,6 +158,7 @@ services:
       - certs:/usr/share/elasticsearch/config/certs
       - esdata03:/usr/share/elasticsearch/data
       - ./backup:/usr/share/elasticsearch/backup
+      - ./config/analysis:/usr/share/elasticsearch/config/analysis
     environment:
       - node.name=es03
       - cluster.name=${CLUSTER_NAME}
