@@ -47,19 +47,19 @@ curl -XPUT --cacert es01.crt -u elastic:hamakim https://localhost:9200/_snapshot
   }'
 
 ## Restore snapsot
-curl -XPOST --cacert es01.crt -u elastic:hamakim _snapshot/javacafe/movie-search/_restore\
+curl -XPOST --cacert es01.crt -u elastic:hamakim https://localhost:9200/_snapshot/javacafe/movie-search/_restore\
   -H 'Content-Type: application/json' \
   -d '{
     "indices": "movie_search"
   }'
 
-curl -XPOST --cacert es01.crt -u elastic:hamakim _snapshot/apache-web-log/default/_restore\
+curl -XPOST --cacert es01.crt -u elastic:hamakim https://localhost:9200/_snapshot/apache-web-log/default/_restore\
   -H 'Content-Type: application/json' \
   -d '{
     "indices": "apache-web-log"
   }'
 
-curl -XPOST --cacert es01.crt -u elastic:hamakim _snapshot/apache-web-log/applied-mapping/_restore\
+curl -XPOST --cacert es01.crt -u elastic:hamakim https://localhost:9200/_snapshot/apache-web-log/applied-mapping/_restore\
   -H 'Content-Type: application/json' \
   -d '{
     "indices": "apache-web-log-applied-mapping"
@@ -95,11 +95,18 @@ curl -XPOST --cacert es01.crt -u elastic:hamakim _snapshot/apache-web-log/applie
 
 ## 3. 데이터 모델링
 
-- 매핑 파라미터
-  - analyzer
-  - normalizer
-- 메타 필드
-  - _index
-  - _id
-  - _source
-  - _routing
+역인덱스
+
+- 모든 문서가 가지는 단어의 고유 단어 목록
+- 해당 단어가 어떤 문서에 속해 있는지에 대한 정보
+- 전체 문서에 각 단어가 몇 개 들어있는지에 대한 정보
+- 하나의 문서에 단어가 몇 번씩 출현했는지에 대한 빈도
+
+분석기의 구조
+
+- Character filter  
+문장을 특정한 규칙에 의해 수정한다.
+- Tokenizer filter  
+수정한 문장을 개별 토큰으로 분리한다.
+- Token filter  
+개별 토큰을 특정한 규칙에 의해 변경한다.
