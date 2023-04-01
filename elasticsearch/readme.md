@@ -26,7 +26,7 @@ docker cp elastic-search-es01-1:/usr/share/elasticsearch/config/certs/es01/es01.
 
 ```bash
 ## Register snapshot repository
-curl -XPUT --cacert es01.crt -u elastic:hamakim https://localhost:9200/_snapshot/javacafe \
+curl -XPUT -k --cacert es01.crt -u elastic:hamakim https://localhost:9200/_snapshot/javacafe \
   -H 'Content-Type: application/json' \
   -d '{ 
     "type": "fs",
@@ -36,7 +36,7 @@ curl -XPUT --cacert es01.crt -u elastic:hamakim https://localhost:9200/_snapshot
     }
   }'
 
-curl -XPUT --cacert es01.crt -u elastic:hamakim https://localhost:9200/_snapshot/apache-web-log \
+curl -XPUT -k --cacert es01.crt -u elastic:hamakim https://localhost:9200/_snapshot/apache-web-log \
   -H 'Content-Type: application/json' \
   -d '{
     "type": "fs",
@@ -47,19 +47,19 @@ curl -XPUT --cacert es01.crt -u elastic:hamakim https://localhost:9200/_snapshot
   }'
 
 ## Restore snapsot
-curl -XPOST --cacert es01.crt -u elastic:hamakim https://localhost:9200/_snapshot/javacafe/movie-search/_restore\
+curl -XPOST -k --cacert es01.crt -u elastic:hamakim https://localhost:9200/_snapshot/javacafe/movie-search/_restore\
   -H 'Content-Type: application/json' \
   -d '{
     "indices": "movie_search"
   }'
 
-curl -XPOST --cacert es01.crt -u elastic:hamakim https://localhost:9200/_snapshot/apache-web-log/default/_restore\
+curl -XPOST -k --cacert es01.crt -u elastic:hamakim https://localhost:9200/_snapshot/apache-web-log/default/_restore\
   -H 'Content-Type: application/json' \
   -d '{
     "indices": "apache-web-log"
   }'
 
-curl -XPOST --cacert es01.crt -u elastic:hamakim https://localhost:9200/_snapshot/apache-web-log/applied-mapping/_restore\
+curl -XPOST -k --cacert es01.crt -u elastic:hamakim https://localhost:9200/_snapshot/apache-web-log/applied-mapping/_restore\
   -H 'Content-Type: application/json' \
   -d '{
     "indices": "apache-web-log-applied-mapping"
@@ -104,9 +104,14 @@ curl -XPOST --cacert es01.crt -u elastic:hamakim https://localhost:9200/_snapsho
 
 분석기의 구조
 
-- Character filter  
-문장을 특정한 규칙에 의해 수정한다.
+- Character filte  
+  문장을 특정한 규칙에 의해 수정한다.
+  - Html strip filter
 - Tokenizer filter  
-수정한 문장을 개별 토큰으로 분리한다.
+  수정한 문장을 개별 토큰으로 분리한다.
+  - standard tokenizer
+  - whitespace tokenizer
 - Token filter  
-개별 토큰을 특정한 규칙에 의해 변경한다.
+  개별 토큰을 특정한 규칙에 의해 변경한다.  
+  - lowercase filter
+  - Synonum filter
