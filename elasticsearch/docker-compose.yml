@@ -63,6 +63,7 @@ services:
       retries: 120
 
   es01:
+    container_name: elasticsearch-es01
     depends_on:
       setup:
         condition: service_healthy
@@ -109,6 +110,7 @@ services:
       retries: 120
 
   es02:
+    container_name: elasticsearch-es02
     depends_on:
       - es01
     image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
@@ -151,6 +153,7 @@ services:
       retries: 120
 
   es03:
+    container_name: elasticsearch-es03
     depends_on:
       - es02
     image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}

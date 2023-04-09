@@ -51,12 +51,14 @@ flowchart LR
 flowchart LR
   subgraph producer
     direction LR
+    record
     partitioner
     subgraph accumulator
         direction TB
         topic1
         topic2
     end
+    record --> partitioner
     partitioner --> topic1
     partitioner --> topic2
     topic1 --> sender[sender thread]

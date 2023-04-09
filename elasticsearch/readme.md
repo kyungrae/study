@@ -19,7 +19,7 @@ unzip book_backup.zip -d ./backup
 docker-compose up -d
 
 ## Copy security certificates from container to local machine
-docker cp elastic-search-es01-1:/usr/share/elasticsearch/config/certs/es01/es01.crt .
+docker cp elasticsearch-es01:/usr/share/elasticsearch/config/certs/es01/es01.crt .
 ```
 
 ### snaptshot 활성화 & 복구
@@ -104,7 +104,7 @@ curl -XPOST -k --cacert es01.crt -u elastic:hamakim https://localhost:9200/_snap
 
 분석기의 구조
 
-- Character filte  
+- Character filter
   문장을 특정한 규칙에 의해 수정한다.
   - Html strip filter
 - Tokenizer filter  
@@ -116,12 +116,25 @@ curl -XPOST -k --cacert es01.crt -u elastic:hamakim https://localhost:9200/_snap
   - lowercase filter
   - Synonum filter
 
+```mermaid
+flowchart LR
+  Text((text)) -->  CharacterFilter[Character Filter]
+  CharacterFilter --가공된 text--> TokenizerFilter[Tokenizer Filter]
+  subgraph filter
+   direction TB
+   TokenFilter[Token Filter]
+   Dictionary[Synonym Dictionary]
+  end
+  TokenizerFilter --Terms--> TokenFilter[Token Filter]
+  TokenFilter --가공된 Terms--> Index((Index))
+```
+
 ## 4. 데이터 검색
 
 ### 검색 API
 
 색인 시점에 Analyzer를 통해 분석된 term을 term, 출현빈도, 문서번호와 같이 역색인 구조로 만들어 내부적으로 저장한다.
-검색 시점에는 keyword 타입과 같은 분석이 불가능한 데이터와 Text 타입과 같은 분석이 가능한 데이터를 구분해서 분석이 가능할 겨우 분서기를 이용해 분석을 수행한다.
+검색 시점에는 keyword 타입과 같은 분석이 불가능한 데이터와 Text 타입과 같은 분석이 가능한 데이터를 구분해서 분석이 가능할 경우 분서기를 이용해 분석을 수행한다.
 
 ### QueryDSL 구조
 
@@ -155,4 +168,4 @@ curl -XPOST -k --cacert es01.crt -u elastic:hamakim https://localhost:9200/_snap
 
 ### 페이징
 
-엘라스틱서치는 **keyset pagination**이 불가능해서 페이지 번호가 높아질수록 비용이 높아진다.
+엘라스틱서치는 **keyset pagination**이 불가능해서 페이지 번호가 높아질수록 비용이 커지니 주의하자.
