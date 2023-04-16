@@ -79,7 +79,7 @@ curl -XPOST -k --cacert es01.crt -u elastic:hamakim https://localhost:9200/_snap
   - document를 구성하기 위한 속성
   - 하나의 필드는 목적에 따라 다수의 데이터 타입을 가질 수 있음
 - mapping
-  - 아직 잘 모르겠음
+  - 문서의 필드와 필드의 속성을 정의하고 그에 따른 색인 방법을 정의하는 프로세스다.
 
 ### 노드의 종류
 
@@ -144,7 +144,16 @@ flowchart LR
   "from":,
   "timeout":,
   "_source": {},
-  "query": {},
+  "query": {
+    "match": {},
+    "term": {},
+    "bool": {
+      "must":[],
+      "must_not":[],
+      "should":[],
+      "filter":[]
+    }
+  },
   "aggs": {},
   "sort":{}
 }
@@ -169,3 +178,18 @@ flowchart LR
 ### 페이징
 
 엘라스틱서치는 **keyset pagination**이 불가능해서 페이지 번호가 높아질수록 비용이 커지니 주의하자.
+
+### 부가적인 검색 API
+
+1. 클러스터 설정 확인 API  
+   `GET _cluster/settings`
+2. 인덱스의 노드와 샤드 정보 조회 API  
+   `POST {index}/_search_shard`
+3. 하나 이상의 쿼리 실행  
+   `POST _msearch`  
+4. 검색된 문서 개수 조회 API  
+   `POST {index}/_count`
+5. score 계산 설명 API  
+   `POST {index}/_explain/{id}`
+6. 쿼리 실행 과정에서 샤드별로 얼마나 많은 시간이 소요  
+   `POST {index}/_search`
