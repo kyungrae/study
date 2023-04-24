@@ -24,6 +24,11 @@ loopback TCP/IP 접속
 3. `mysql -root -p`  
 unix 소켓 파일을 이용해 ICP 통신을 이용하며 socket 파일은 서버 설정 파일에서 참조
 
+```bash
+# 명령어를 통해서 IPC와 TCP/IP 통신의 차이를 확인할 수 있다.
+lsof -i 127.0.0.1:3306 
+```
+
 ### 서버 설정
 
 - 설정 파일
