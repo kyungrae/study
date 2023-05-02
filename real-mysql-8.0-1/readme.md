@@ -18,15 +18,15 @@ C++ 헤더 파일들이 저장되는 디렉토리
 ### 서버 연결 테스트
 
 1. `mysql -uroot -p --host=localhost --sock=/tmp/mysql.sock`  
-unix 소켓 파일을 이용해 ICP 통신
+unix 소켓 파일을 이용해 IPC 통신
 2. `mysql -uroot -p --host=127.0.0.1 --port=3306`  
 loopback TCP/IP 접속
 3. `mysql -root -p`  
-unix 소켓 파일을 이용해 ICP 통신을 이용하며 socket 파일은 서버 설정 파일에서 참조
+unix 소켓 파일을 이용해 IPC 통신을 이용하며 socket 파일은 서버 설정 파일에서 참조
 
 ```bash
 # 명령어를 통해서 IPC와 TCP/IP 통신의 차이를 확인할 수 있다.
-lsof -i 127.0.0.1:3306 
+lsof -i:3306 
 ```
 
 ### 서버 설정
@@ -37,8 +37,10 @@ lsof -i 127.0.0.1:3306
   - /user/etc/my.cnf
   - ~/.my.cnf
 - 시스템 변수
-  - `SHOW (GLOBAL) VARIABLES`
-  - `SET (PERSIST) (GLOBAL) VARIABELS`
+  - 확인
+    - `SHOW (GLOBAL) VARIABLES`
+  - 수정
+    - `SET (PERSIST) (GLOBAL) VARIABELS`
 
 ## 3. 사용자 및 권한
 
@@ -46,7 +48,7 @@ lsof -i 127.0.0.1:3306
 
 - native pluggable authentication  
 비밀번호에 대한 hash(SHA-1) 저장하고 클라이언트가 보낸 비밀번호 hash 값이 일치하는지 단순 비교
-- caching sha-2 pluggable authentication
+- caching sha-2 pluggable authentication  
 SHA-2 알고리즘을 이용해 비밀번호 hash를 생성한다. rainbow table & brute force 취약점을 해결하기 위해 salt & key streching 적용했다. 많은 컨넥션을 연결하는 경우 hash 계산하기 위해 CPU 부하가 발생할 수 있다. 해당 취약점을 보안하기 위해 hash 결과값을 메모리에 caching 해 CPU 리소스 소모를 줄일 수 있다. SSL/TLS 또는 RSA 키페어 방식 필요하다.
 - PAM Pluggable Authentication
 - LDAP Pluggable Authentication
