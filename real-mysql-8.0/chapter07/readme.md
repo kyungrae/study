@@ -1,0 +1,63 @@
+# 7. 데이터 암호화
+
+## 7.1 MySQL 서버의 데이터 암호화
+
+MySQL 암호화 기능은 데이터베이스 서버와 디스크 사이의 데이터를 읽고 쓰기 시점에서 암호화 또는 복호화를 수행한다.
+데이터 암호화 기능이 활성화돼 있다고 하더라도 MySQL 내부와 사용자 입장에서는 아무런 차이가 없기 때문에 이런한 암호화 방식을 가르켜 TDE(Transparent Data Encryption)이라고 한다.
+
+### 7.1.1 2단계 키 관리
+
+MySQL 서버의 데이터 암호화는 마스터 키(master key)와 테이블스페이스 키(tablespace key)라는 두종류의 키를 가지고 있는데, 테이블스페이스 키는 프라이빗 키(private key)라고도 한다.
+MySQL 서버는 마스터 키를 가져와 암호화된 테이블이 생성될 때마다 해당 테이블을 위한 임의의 테이블스페이스 키를 발급한다.
+그리고 MySQL 서버는 마스터 키를 이용해 테이블스페이스 키를 암호화해서 각 테이블의 데이터 파일 헤더에 저장한다.
+
+### 7.1.2 암호화와 성능
+
+- 압축과 암호화를 동시에 적용되면 압축 후 암호화를 적용한다.
+- 암호화된 테이블의 읽기는 3~5배 느리고 쓰기는 5~6배 느리다.
+
+### 7.1.3 암호화와 복제
+
+MySQL 서버에서 기본적으로 모든 노드는 각자의 마스터 키를 할당해야 한다.
+마스터 키 자체가 레플리카로 복제되지 않기 떄문에 테이블스페이스 키 또한 레플리카로 복제되지 않는다.
+소스 서버와 레플리카 서버는 서로 다른 마스터 키와 테이블스페이스 키를 관리하기 때문에 암호화 되기 전의 데이터가 동일하더라도 실제 암호화된 테이터 파일의 내용은 완전히 다르다.
+
+MySQL 서버의 백업에서 TDE의 키링(Key Ring) 파일을 백업하지 않는 겨웅가 있는데, 이 겨웅 키링 파일을 찾지 못하면 데이터를 복구를 할 수 없게 된다.
+
+## 7.2 keyring_file 플러그인 설치
+
+```bash
+## my.cnf
+early-plugin-load = keyring_file.so
+keyring_file_data = /very/secure/directory/tde_master.key
+```
+
+## 7.3 테이블 암호화
+
+### 7.3.1 테이블 생성
+
+```sql
+CREATE TABLE tab_encrypted(
+    id INT,
+    data VARCHAR(100),
+    PRIMARY KEY(id)
+) ENCRYPTION = 'Y';
+```
+
+### 7.3.2 응용 프로그램 암호화와의 비교
+
+응용 프로그램에서 직접 암호화해서 MySQL 서버에 저장하는 경우 컬럼 값이 이미 암호화된 것인지 MySQL 서버는 인지하지 못한다.
+그래서 응용 프로그램에서 암호화된 컬럼은 인덱스를 생성하더라도 인덱스의 기능을 100% 활용할 수 없다.
+
+```sql
+## index 검색 O
+SELECT * FROM app_user WHERE enc_birth_year=#{encryptedYear};
+
+## index 검색 X
+SELECT * FROM app_user WHERE enc_birth_year BETWEEN #{encryptedMinYear} AND #{encryptedMaxYear};
+SELECT * FROM app_user ORDER BY enc_birth_year LIMIT 10;
+```
+
+## 7.4 언두 로그 및 리두 로그 암호화
+
+## 7.5 바이너리 로그 암호화

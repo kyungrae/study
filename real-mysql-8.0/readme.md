@@ -9,3 +9,5 @@
 ## [5. 트랜잭션과 잠금](./chapter05/readme.md)
 
 ## [6. 데이터 압축](./chapter06/readme.md)
+
+## [7. 데이터 암호화](./chapter07/readme.md)
