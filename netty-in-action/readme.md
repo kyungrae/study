@@ -21,7 +21,7 @@ CPU 리소스를 효율적으로 사용하기 위해 다수의 thread를 생성�
 
 ### 이벤트 루프
 
-이벤트 루프는 한 Channel의 모든 입출력 이벤트를 처리하는 한 스레드에 의해 제어된다.
+이벤트 루프는 한 Channel의 모든 입출력 이벤트를 처리하며 한 스레드에 의해 제어된다.
 이벤트 루프는 내부적으로 관심 이벤트 등록, 이벤트를 ChannelHandler로 발송, 추가 동작 스케줄링 작업을 처리한다.
 
 ## 02. 첫 번째 네티 애플리케이션
@@ -30,6 +30,9 @@ Netty 프레임워크도 socket 인터페이스를 추상화한 프레임워크�
 소켓 채널에 데이터를 전송하기 전에 메인 메소드가 끝나는 것을 막기 위해 소켓 채널 close를 동기 호출한다.
 
 ```mermaid
+---
+title: Server/Client bootstrap
+---
 flowchart
   subgraph Server
     ServerEventLoopGrop["EventLoopGroup"] --이벤트 루프 설정--> ServerBootstrap
@@ -44,4 +47,56 @@ flowchart
     RemoteAddress --SocketAddress 지정--> Bootstrap
     Handler --연결된 Socket 채널의 파이프라인 추가--> Bootstrap
   end
+```
+
+## 03. 네티 컴포넌트와 설계
+
+## EventLoop
+
+- Channel은 수명주기 동안 한 EventLoop에 등록할 수 있다.
+- EventLoop 라이프사이클 동안 하나의 thread에 바인딩된다.
+- EventLoop에 하나 이상의 Channel을 할당할 수 있다.
+
+```mermaid
+---
+title: ChannelHandler 클래스 계층
+---
+classDiagram
+  ChannelHandler <|-- ChannelInboundHandler
+  ChannelHandler <|-- ChannelOutboundHandler
+```
+
+```mermaid
+---
+title: ChannelPipeline
+---
+flowchart LR
+  input --> ChannelInboundHandler1
+  subgraph ChannelPipeline
+    ChannelInboundHandler1["ChannelInboundHandler"] --> ChannelInboundHandler2["ChannelInboundHandler"]
+    ChannelInboundHandler2  -.-> ChannelOutboundHandler1
+    ChannelOutboundHandler1["ChannelOutboundHandler"] --> ChannelOutboundHandler2["ChannelOutboundHandler"]
+  end
+  ChannelOutboundHandler2 --> output
+```
+
+```mermaid
+---
+title: EventLoopGroup 두 개를 갖는 서버
+---
+flowchart
+  subgraph ServerEventLoopGroup
+    EventLoop1["EventLoop"]
+  end
+
+  EventLoop1 --할당--> ServerChannel
+  ServerChannel --Accept--> Channel1["수락된 Channel"]
+  ServerChannel --Accept--> Channel2["수락된 Channel"]
+  
+  subgraph ClientEventLoopGroup
+    EventLoop2["EventLoop"]
+    EventLoop3["EventLoop"]
+  end
+  EventLoop2 --할당--> Channel1
+  EventLoop3 --할당--> Channel2
 ```
