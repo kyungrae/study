@@ -100,3 +100,41 @@ flowchart
   EventLoop2 --할당--> Channel1
   EventLoop3 --할당--> Channel2
 ```
+
+## 04. 전송
+
+```mermaid
+---
+title: Channel 인터페이스 의존 관계
+---
+classDiagram
+  class Channel
+  <<interface>> Channel
+  class Comparable
+  <<interface>> Comparable
+  class AttributeMap
+  <<interface>> AttributeMap
+  class ServerChannel
+  <<interface>> ServerChannel
+  class ChannelPipeline
+  <<interface>> ChannelPipeline
+  class ChannelConfig
+  <<interface>> ChannelConfig
+  class AbstractChannel
+  <<abstract>> AbstractChannel
+
+  Comparable <|-- Channel : 구현
+  AttributeMap <|-- Channel : 구현
+  Channel <|-- ServerChannel : 구현
+  ChannelPipeline *-- Channel : 의존
+  ChannelConfig *-- Channel : 의존
+  Channel <|-- AbstractChannel : 구현
+```
+
+| 이름     | 패키지                      | 설명                                   |
+|----------|-----------------------------|----------------------------------------|
+| NIO      | io.netty.channel.socket.nio | Selector 기반 방식                     |
+| Epoll    | io.netty.channel.epoll      | Linux epoll 방식                       |
+| OIO      | io.netty.channel.socket.oio | java.net 방식(blocking)                |
+| Local    | io.netty.channel.local      | VM pipeline 통신                       |
+| Embedded | io.netty.channel.embedded   | 네트워크 전송 없이 ChannelHandler 이용 |
