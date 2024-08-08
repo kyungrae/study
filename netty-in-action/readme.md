@@ -51,7 +51,7 @@ flowchart
 
 ## 03. 네티 컴포넌트와 설계
 
-## EventLoop
+### EventLoop
 
 - Channel은 수명주기 동안 한 EventLoop에 등록할 수 있다.
 - EventLoop 라이프사이클 동안 하나의 thread에 바인딩된다.
@@ -131,10 +131,40 @@ classDiagram
   Channel <|-- AbstractChannel : 구현
 ```
 
-| 이름     | 패키지                      | 설명                                   |
-|----------|-----------------------------|----------------------------------------|
-| NIO      | io.netty.channel.socket.nio | Selector 기반 방식                     |
-| Epoll    | io.netty.channel.epoll      | Linux epoll 방식                       |
-| OIO      | io.netty.channel.socket.oio | java.net 방식(blocking)                |
-| Local    | io.netty.channel.local      | VM pipeline 통신                       |
+| 이름       | 패키지                         | 설명                           |
+|----------|-----------------------------|------------------------------|
+| NIO      | io.netty.channel.socket.nio | Selector 기반 방식               |
+| Epoll    | io.netty.channel.epoll      | Linux epoll 방식               |
+| OIO      | io.netty.channel.socket.oio | java.net 방식(blocking)        |
+| Local    | io.netty.channel.local      | VM pipeline 통신               |
 | Embedded | io.netty.channel.embedded   | 네트워크 전송 없이 ChannelHandler 이용 |
+
+## 5. ByteBuf
+
+Netty에서 I/O byte를 쉽게 다룰 수 있도록 추상화한 `ByteBuf` 클래스를 제공한다.
+ByteBuf에는 read와 write 연산을 위해 필요한 인덱스인 readerIndex와 writerIndex가 각각 존재한다.
+
+```markdown
++-------------------+------------------+------------------+
+| discardable bytes |  readable bytes  |  writable bytes  |
+|                   |     (CONTENT)    |                  |
++-------------------+------------------+------------------+
+|                   |                  |                  |
+0      <=      readerIndex   <=   writerIndex    <=    capacity
+```
+
+### HeapBuf
+
+Backing array 패턴을 이용하는 ByteBuf 인스턴스이다.
+byte 정보를 heap 메모리에 저장하기 때문에 메모리 할당과 해제가 용이하다.
+
+### DirectBuf
+
+고성능 입출력을 위해 OS가 사용하는 메모리에 직접 접근하는 ByteBuf 인스턴스이다.
+애플리케이션 버퍼에 있는 데이터를 OS 버퍼로 copy하는 작업을 생략하기 때문에 빠르다.
+GC에 의해 메모리가 관리되지 않기 때문에 메모리 할당과 해제에 대한 비용 부담이 크다.
+
+### ByteBufAllocator
+
+ByteBuf 인스턴스의 메모리 할당과 해제 시 발생한다.
+오버헤드를 줄이기 위해 ByteBufAllocator 인터페이스를 통해 ByteBuf 인스턴스를 할당하는 데 이용할 수 있는 풀링을 구현한다. 
