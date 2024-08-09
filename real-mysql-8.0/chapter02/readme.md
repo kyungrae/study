@@ -2,7 +2,7 @@
 
 ## 2.1 MySQL 서버 설치
 
-/usr/local/mysql 디렉토리 구조
+`/usr/local/mysql` 디렉토리 구조
 
 1. bin  
 MySQL 서버와 클라이언트 프로그램, 유틸리티를 위한 디렉토리

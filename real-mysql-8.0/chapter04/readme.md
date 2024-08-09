@@ -4,35 +4,79 @@
 
 ### 4.1.1 MySQL 전체 구조
 
-#### 4.1.1.1 MySQL 엔진
+- MySQL 엔진  
+요청된 SQL 문장을 분석하거나 최적화하는 역할을 한다.
+- 스토리지 엔진  
+실제 데이터를 디스크 스토리지에 저장하거나 읽어오는 역할을 한다.
+- 핸들러 API  
+MySQL 엔진이 스토리지 엔진에게 데이터를 읽거나 쓰라고 요청하는 인터페이스 역할을 한다.
 
-SQL 문장을 분석하거나 최적화 수행
-
-- 컨넥션 핸들러
-- SQL 파서
-- 옵티마이저
-
-#### 4.1.1.2 스토리지 엔진
-
-데이터를 디스크 스토리지에 저장하거나 디스크 스토리지로부터 데이터를 읽음
-
-- InnoDB
-- MyISAM
+```mermaid
+flowchart
+  Client
+  subgraph MySQLServer["MySQL Server"]
+    subgraph MySQLEngine["MySQL Engine"]
+      direction TB
+      ConnectionHandler["Connection Handler"]
+      Preprocessor
+      SqlParser["SQL Parser"]
+      Optimizer
+      CacheBuffer["Cache & Buffer"]
+      end
+    subgraph StorageEngine["Storage Engine"]
+      direction LR
+      InnoDB
+      MyISAM
+    end
+  end
+  Client --클라이언트 접속 & 쿼리 요청 처리--> ConnectionHandler
+```
 
 ### 4.1.2 스레딩 구조
 
-- foreground
-  - MySQL 서버에 접속한 클라이언트 수만큼 존재하며, 주로 각 클라이언트 사용자가 요청하는 쿼리 문장을 처리한다.
-- background
-  - change buffer 병합 스레드
-  - log를 디스크로 기록하는 스레드
-  - InnoDB 버퍼 풀의 데이터를 디스크에 기록하는 스레드
-  - 데이터를 버퍼로 읽어오는 스레드
-  - 잠금이나 데드락을 모니터링하는 스레드
+#### Foreground 스레드
+
+- MySQL 서버에 접속한 클라이언트 수만큼 존재하며, 주로 각 클라이언트 사용자가 요청하는 쿼리 문장을 처리한다.
+- InnoDB 테이블은 데이터 버퍼나 캐시에 데이터 쓰기까지만 포그라운드 스레드가 처리하고, 버퍼로부터 디스크까지 기록하는 작업은 백그라운드 스레드가 처리한다.
+
+#### Background 스레드
+
+- change buffer 병합 스레드
+- log를 디스크로 기록하는 스레드
+- InnoDB 버퍼 풀의 데이터를 디스크에 기록하는 스레드
+- 데이터를 버퍼로 읽어오는 스레드
+- 잠금이나 데드락을 모니터링하는 스레드
 
 ```sql
-SELECT thread_id, nmae, type, processlist_user, processlist_host FROM performance_schema.threads ORDER 
-BY type, thread_id;
+SELECT thread_id, nmae, type, processlist_user, processlist_host
+FROM performance_schema.threads
+ORDER BY type, thread_id;
+```
+
+### 4.1.3 메모리 할당 및 사용 구조
+
+#### 글로벌 메모리
+
+모든 스레드에서 공유되는 메모리
+
+#### 로컬 메모리
+
+클라이언트 스레드가 쿼리 요청을 처리하는 데 사용하는 메모리
+
+```mermaid
+flowchart
+  subgraph GlobalMemroy["Global Memory"]
+    InnoDBBufferPool["InnoDB Buffer Pool"]
+    BinaryLogBuffer["Binary Log Buffer"]
+    RedoLogBuffer["Redo Log Buffer"]
+    TableCache["Table Cache"]
+  end
+  subgraph SessionMemroy["Session Memory"]
+    JoinBuffer["Join Buffer"]
+    SortBuffer["Sort Buffer"]
+    NetworBuffer["Network Buffer"]
+    ResultBuffer["Result Buffer"]
+  end
 ```
 
 ### 4.1.6 쿼리 실행 구조
