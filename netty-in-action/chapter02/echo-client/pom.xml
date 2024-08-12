@@ -11,7 +11,7 @@
     </parent>
 
     <artifactId>echo-client</artifactId>
-    <name>Chapter 02. Echo Client</name>
+    <name>Chapter 2. Echo Client</name>
 
     <build>
         <plugins>

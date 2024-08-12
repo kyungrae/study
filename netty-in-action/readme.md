@@ -1,30 +1,13 @@
 # Netty in action
 
-## 01. 네티: 비동기식 이벤트 기반 네트워킹 프로그래밍
+## 1. 네티: 비동기식 이벤트 기반 네트워킹 프로그래밍
 
 Blocking socket API를 사용하면 IO 작업 시간 동안 CPU를 효율적으로 사용할 수 없다.
 CPU 리소스를 효율적으로 사용하기 위해 다수의 thread를 생성해 요청을 처리할 수 있다.
 하지만 thread를 계속해서 증가시키면 **context switching** 비용이 증가하면서 오히려 오버헤드가 커지는 문제가 있다.
 네티는 Non blocking API를 이용해 효율적으로 네트워크 요청을 처리할 수 있는 네트워크 프레임워크다.
 
-### Channel
-
-하나 이상의 입출력 작업(예: 읽기 또는 쓰기)을 수행할 수 있는 하드웨어 장치, 파일, 네트워크 소켓과 같은 연결
-
-### Callback
-
-자신에 대한 참조를 제공할 수 있는 메소드
-
-### Future
-
-비동기 작업의 결과를 담는 place holder 역할을 하며, 미래에 작업이 완료되면 그 결과에 접근 가능
-
-### 이벤트 루프
-
-이벤트 루프는 한 Channel의 모든 입출력 이벤트를 처리하며 한 스레드에 의해 제어된다.
-이벤트 루프는 내부적으로 관심 이벤트 등록, 이벤트를 ChannelHandler로 발송, 추가 동작 스케줄링 작업을 처리한다.
-
-## 02. 첫 번째 네티 애플리케이션
+## 2. 첫 번째 네티 애플리케이션
 
 Netty 프레임워크도 socket 인터페이스를 추상화한 프레임워크라 기존 네트워크 설정은 비슷하다.
 소켓 채널에 데이터를 전송하기 전에 메인 메소드가 끝나는 것을 막기 위해 소켓 채널 close를 동기 호출한다.
@@ -49,36 +32,13 @@ flowchart
   end
 ```
 
-## 03. 네티 컴포넌트와 설계
+## 3. 네티 컴포넌트와 설계
 
 ### EventLoop
 
 - Channel은 수명주기 동안 한 EventLoop에 등록할 수 있다.
 - EventLoop 라이프사이클 동안 하나의 thread에 바인딩된다.
 - EventLoop에 하나 이상의 Channel을 할당할 수 있다.
-
-```mermaid
----
-title: ChannelHandler 클래스 계층
----
-classDiagram
-  ChannelHandler <|-- ChannelInboundHandler
-  ChannelHandler <|-- ChannelOutboundHandler
-```
-
-```mermaid
----
-title: ChannelPipeline
----
-flowchart LR
-  input --> ChannelInboundHandler1
-  subgraph ChannelPipeline
-    ChannelInboundHandler1["ChannelInboundHandler"] --> ChannelInboundHandler2["ChannelInboundHandler"]
-    ChannelInboundHandler2  -.-> ChannelOutboundHandler1
-    ChannelOutboundHandler1["ChannelOutboundHandler"] --> ChannelOutboundHandler2["ChannelOutboundHandler"]
-  end
-  ChannelOutboundHandler2 --> output
-```
 
 ```mermaid
 ---
@@ -101,7 +61,20 @@ flowchart
   EventLoop3 --할당--> Channel2
 ```
 
-## 04. 전송
+## 4. 전송
+
+### Channel
+
+하나 이상의 입출력 작업(예: 읽기 또는 쓰기)을 수행할 수 있는 하드웨어 장치, 파일, 네트워크 소켓과 같은 연결
+
+#### Channel의 생명 주기
+
+| 상태                  | 설명             |
+|---------------------|----------------|
+| ChannelRegistered   | EventLoop에 등록됨 |
+| ChannelActive       | 원격 피어와 연결됨     |
+| ChannelInactive     | 연격 피어와 끊어짐     |
+| ChannelUnregistered | EventLoop에 제거됨 |
 
 ```mermaid
 ---
@@ -130,6 +103,8 @@ classDiagram
   ChannelConfig *-- Channel : 의존
   Channel <|-- AbstractChannel : 구현
 ```
+
+### 네티에서 제공하는 전송
 
 | 이름       | 패키지                         | 설명                           |
 |----------|-----------------------------|------------------------------|
@@ -167,4 +142,108 @@ GC에 의해 메모리가 관리되지 않기 때문에 메모리 할당과 해�
 ### ByteBufAllocator
 
 ByteBuf 인스턴스의 메모리 할당과 해제 시 발생한다.
-오버헤드를 줄이기 위해 ByteBufAllocator 인터페이스를 통해 ByteBuf 인스턴스를 할당하는 데 이용할 수 있는 풀링을 구현한다. 
+오버헤드를 줄이기 위해 ByteBufAllocator 인터페이스를 통해 ByteBuf 인스턴스를 할당하는 데 이용할 수 있는 풀링을 구현한다.
+
+## 6. ChannelHandler와 ChannelPipeline
+
+### ChannelHandler
+
+네티는 작업의 상태 변화를 알리기 위해 고유한 이벤트를 이용하며, 발생한 이벤트를 기준으로 이벤트 핸들러의 동작을 트리거할 수 있다. 채널에서 발생하는 IO 이벤트를 처리하기 위해 개발자는 ChannelHandler를 ChannelPipeline에 등록해 애플리케이션 비즈니스를 작성할 수 있다.
+
+#### ChannelHandler 생명 주기 메소드
+
+| 상태              | 설명                                   |
+|-----------------|--------------------------------------|
+| handlerAdded    | ChannelPiepline에 추가될 때 호출됨           |
+| handlerRemoved  | ChannelPiepline에 제거될 때 호출됨           |
+| exceptionCaught | ChannelPiepline에서 처리 중에 오류가 발생하면 호출됨 |
+
+#### I/O ChannelHandler 클래스 계층
+
+```mermaid
+---
+title: ChannelHandler 클래스 계층
+---
+classDiagram
+  class ChannelHandler
+  <<interface>> ChannelHandler
+  class ChannelInboundHandler
+  <<interface>> ChannelInboundHandler
+  class ChannelOutboundHandler
+  <<interface>> ChannelOutboundHandler
+
+
+  ChannelHandler <|-- ChannelInboundHandler
+  ChannelInboundHandler <|-- ChannelInboundHandlerAdapter
+  ChannelHandler <|-- ChannelHandlerAdapater
+  ChannelHandlerAdapater <|-- ChannelInboundHandlerAdapter
+  ChannelHandler <|-- ChannelOutboundHandler
+  ChannelOutboundHandler <|-- ChannelOutboundHandlerAdapter
+  ChannelHandlerAdapater <|-- ChannelOutboundHandlerAdapter
+```
+
+#### Sharable
+
+ChannelHandler 인스턴스는 둘 이상의 ChannelPipeline에 바인딩하는 경우 @Sharable 어노테이션을 지정해야 하고 상태를 저장하지 않는 두 가지 조건을 충족해야 한다.
+
+#### 리소스 관리
+
+ChannelInboundHandler.channelRead() 또는 ChannelOutboundHandler.write()를 호출해 데이터를 대상으로 작업할 때 ReferenceCountUtil.release(ByteBuf) 호출해 memory leak이 발생하지 않게 주의해야 한다.
+
+#### ChannelPromise
+
+작업을 완료 후 ChannelPromise.setSuccess() 또는 ChannelPromise.setFailure()를 호출해 ChannelFutureListener가 작업이 완료됐다는 알림을 수신할 수 있도록 해야 한다.
+
+### ChannelPipeline
+
+Channel을 통해 오가는 인바운드 아웃바운드 이벤트를 가로채는 ChanndlerHandler 인스턴스 채인이다.
+인바운드 이벤트는 ChannelPipeline에 등록된 handler의 오름차순으로 호출된다.
+아웃바운드 이벤트 ChannelPipeline에 등록된 handler의 내림차순으로 호출된다.
+이벤트에 해당하는 핸들러가 아닌 경우 stack depth를 낮추기 위해 건너뛴다.
+
+```markdonw
+I/O Request
+                                           via {@link Channel} or
+                                       {@link ChannelHandlerContext}
+                                                     |
++---------------------------------------------------+---------------+
+|                           ChannelPipeline         |               |
+|                                                  \|/              |
+|    +---------------------+            +-----------+----------+    |
+|    | Inbound Handler  N  |            | Outbound Handler  1  |    |
+|    +----------+----------+            +-----------+----------+    |
+|              /|\                                  |               |
+|               |                                  \|/              |
+|    +----------+----------+            +-----------+----------+    |
+|    | Inbound Handler N-1 |            | Outbound Handler  2  |    |
+|    +----------+----------+            +-----------+----------+    |
+|              /|\                                  .               |
+|               .                                   .               |
+| ChannelHandlerContext.fireIN_EVT() ChannelHandlerContext.OUT_EVT()|
+|        [ method call]                       [method call]         |
+|               .                                   .               |
+|               .                                  \|/              |
+|    +----------+----------+            +-----------+----------+    |
+|    | Inbound Handler  2  |            | Outbound Handler M-1 |    |
+|    +----------+----------+            +-----------+----------+    |
+|              /|\                                  |               |
+|               |                                  \|/              |
+|    +----------+----------+            +-----------+----------+    |
+|    | Inbound Handler  1  |            | Outbound Handler  M  |    |
+|    +----------+----------+            +-----------+----------+    |
+|              /|\                                  |               |
++---------------+-----------------------------------+---------------+
+                 |                                  \|/
++---------------+-----------------------------------+---------------+
+|               |                                   |               |
+|       [ Socket.read() ]                    [ Socket.write() ]     |
+|                                                                   |
+|  Netty Internal I/O Threads (Transport Implementation)            |
++-------------------------------------------------------------------+
+```
+
+### ChannelHandlerContext
+
+ChannelHandler와 ChannelPipeline 간의 연결을 나타내며 ChannelHandler를 ChannelPipeline에 추가할 때마다 생성된다.
+Channel이나 ChannelPipeline 인스턴스에서 메소드를 호출하면 이벤트가 전체 파이프라인을 통해 전파된다.
+반면 ChannelHandlerContext에서 호출하면 현재 연결된 ChannelHandler에서 가장 가까운 다음 ChannelHandler 메소드로 이벤트가 전파된다.

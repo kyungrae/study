@@ -13,7 +13,7 @@
 
     <artifactId>chapter02</artifactId>
     <packaging>pom</packaging>
-    <name>Chapter 02. Your First Netty Application - Echo App</name>
+    <name>Chapter 2. Your First Netty Application - Echo App</name>
     <description>
         Build an Echo Server and Client
     </description>

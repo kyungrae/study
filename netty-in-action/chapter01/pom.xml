@@ -14,7 +14,7 @@
     <artifactId>chapter01</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
-    <name>Chapter 01. Netty—asynchronous and event-driven</name>
+    <name>Chapter 1. Netty—asynchronous and event-driven</name>
     <description>
         Build an Echo Server and Client
     </description>

@@ -3,7 +3,6 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-
     <parent>
         <groupId>hama</groupId>
         <artifactId>netty-exercise</artifactId>
@@ -11,9 +10,11 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>chapter05</artifactId>
-    <name>Chapter 5. ByteBuf</name>
+    <artifactId>chapter06</artifactId>
+    <name>
+        Chapter 6. ChannelHandler and ChannelPipeline
+    </name>
     <description>
-        Netty’s data container
+        The ChannelHandler and ChannelPipeline APIs
     </description>
 </project>

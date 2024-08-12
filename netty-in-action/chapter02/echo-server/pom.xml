@@ -11,7 +11,7 @@
     </parent>
 
     <artifactId>echo-server</artifactId>
-    <name>Chapter 02. Echo Server</name>
+    <name>Chapter 2. Echo Server</name>
 
     <build>
         <plugins>

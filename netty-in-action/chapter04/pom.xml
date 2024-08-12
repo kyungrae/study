@@ -14,7 +14,7 @@
     <artifactId>chapter04</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
-    <name>Chapter 04. Transport</name>
+    <name>Chapter 4. Transport</name>
     <description>
         OIO, NIO, Local and Embedded Transport
     </description>
