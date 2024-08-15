@@ -247,3 +247,132 @@ I/O Request
 ChannelHandler와 ChannelPipeline 간의 연결을 나타내며 ChannelHandler를 ChannelPipeline에 추가할 때마다 생성된다.
 Channel이나 ChannelPipeline 인스턴스에서 메소드를 호출하면 이벤트가 전체 파이프라인을 통해 전파된다.
 반면 ChannelHandlerContext에서 호출하면 현재 연결된 ChannelHandler에서 가장 가까운 다음 ChannelHandler 메소드로 이벤트가 전파된다.
+
+## 7. EventLoop와 스레딩 모델
+
+### java.util.concurrent.Executor
+
+Thread 캐싱과 재사용으로 성능을 개선 했지만, 여전히 컨텍스트 스위치 비용은 발생한다.
+
+```mermaid
+---
+title: Executor 실행 논리
+---
+flowchart LR
+  subgraph ThreadPool
+    direction TB
+    Thread1["Thread"] ~~~ Thread2["Thread"]
+    Thread2 ~~~ Thread3["Thread"]
+  end
+  Runnable --> Executor["Executor.execute()"]
+  Executor --> ThreadPool
+
+```
+
+### EventLoop
+
+#### DefaultEventLoop 내부 구현
+
+BlockingQueue에서 task를 poll 후 실행하는 것을 볼 수 있다.
+스케줄된 task가 있는 경우 명시된 시간에 task를 실행하기 위해 `task = taskQueue.poll(delayNanos, TimeUnit.NANOSECONDS);` 호출하는 것이 인상적이다.
+
+```java
+public class DefaultEventLoop extends SingleThreadEventLoop {
+  @Override
+  protected void run() {
+    for (;;) {
+      Runnable task = takeTask();
+      if (task != null) {
+        runTask(task);
+        updateLastExecutionTime();
+      }
+
+      if (confirmShutdown()) {
+        break;
+      }
+    }
+  }
+}
+```
+
+```java
+public abstract class SingleThreadEventExecutor extends AbstractScheduledEventExecutor implements OrderedEventExecutor {
+
+  protected Runnable takeTask() {
+    assert inEventLoop();
+    if (!(taskQueue instanceof BlockingQueue)) {
+      throw new UnsupportedOperationException();
+    }
+
+    BlockingQueue<Runnable> taskQueue = (BlockingQueue<Runnable>) this.taskQueue;
+    for (;;) {
+      ScheduledFutureTask<?> scheduledTask = peekScheduledTask();
+      if (scheduledTask == null) {
+        Runnable task = null;
+        try {
+            task = taskQueue.take();
+            if (task == WAKEUP_TASK) {
+                task = null;
+            }
+        } catch (InterruptedException e) {}
+        return task;
+      } else {
+        long delayNanos = scheduledTask.delayNanos();
+        Runnable task = null;
+        if (delayNanos > 0) {
+            try {
+                task = taskQueue.poll(delayNanos, TimeUnit.NANOSECONDS);
+            } catch (InterruptedException e) {
+                // Waken up.
+                return null;
+            }
+        }
+        if (task == null) {
+            fetchFromScheduledTaskQueue();
+            task = taskQueue.poll();
+        }
+
+        if (task != null) {
+            return task;
+        }
+      }
+    }
+  }
+}
+```
+
+#### ChannelHandler 주의점
+
+Channel Handler는 할당된 EventLoop를 통해 실행된다.
+Channel Handler에서 latency가 긴 작업을 호출한다면 starvation 문제가 발생할 수 있다.
+latency가 큰 ChannelHandler를 등록할 떄는 `ChannelPipeline.addFirst(EventExecutorGroup group, String name, ChannelHandler handler)` 메소드를 통해 ChannelHandler를 등록해 전달된 EventExecutorGroup에서 실행되도록 하자.
+
+```mermaid
+---
+title: NioEventLoop 리소스 할당
+---
+flowchart LR
+  subgraph NioEventLoop
+    EventLoop1["EventLoop"]
+    EventLoop2["EventLoop"]
+  end
+  EventLoop1 --- Channel11["Channel"]
+  EventLoop1 --- Channel12["Channel"]
+  EventLoop2 --- Channel21["Channel"]
+  EventLoop2 --- Channel22["Channel"]
+```
+
+```mermaid
+---
+title: OioEventLoop 리소스 할당
+---
+flowchart LR
+  subgraph OioEventLoop
+    EventLoop1["EventLoop"]
+    EventLoop2["EventLoop"]
+    EventLoop3["EventLoop"]
+  end
+  EventLoop1 --- Channel1["Channel"]
+  EventLoop2 --- Channel2["Channel"]
+  EventLoop3 --- Channel3["Channel"]
+```
