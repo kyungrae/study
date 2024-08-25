@@ -376,3 +376,33 @@ flowchart LR
   EventLoop2 --- Channel2["Channel"]
   EventLoop3 --- Channel3["Channel"]
 ```
+
+## 8. Bootstrap
+
+개발자가 작성한 ChannelHandler와 ChannelPiepeline을 Channel에 쉽게 연결할 수 있도록 도와주는 클래스이다.  
+
+### Bootstrap class
+
+```mermaid
+classDiagram
+  class AbstractBootstrap
+  class Bootstrap
+  class ServerBootstrap
+
+  AbstractBootstrap <|-- Bootstrap
+  AbstractBootstrap <|-- ServerBootstrap
+```
+
+### 채널에서 클라이언트 부트스트랩
+
+외부 웹 서비스나 데이터베이스 같은 시스템에 통합해야 하는 경우 수락된 Channel의 EventLoop를 Bootstrap의 group() 메소드로 전달해 Eventloop를 공유할 수 있다.
+EventLoop를 공유함으로써 컨텍스트 스위치 비용을 절약할 수 있다.
+
+```mermaid
+flowchart LR
+  ServerBootstrap --bind--> ServerChannel
+  ServerChannel --accept--> AcceptedChannel
+  AcceptedChannel --> Bootstrap
+  Bootstrap --connet--> ExternalChannel
+  AcceptedChannel --bootstrap.group(ctx.channel().eventLoop())--> ExternalChannel
+```
