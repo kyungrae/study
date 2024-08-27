@@ -1,16 +1,5 @@
 # Real MySQL 8.0
 
-## 도커 컨테이너
-
-```bash
-docker run \
- --name mysql \
- -e MYSQL_ALLOW_EMPTY_PASSWORD=yes \
- -p 3306:3306 \
- -d \
- mysql:8.0.39
-```
-
 ## [2. 설치와 설정](./chapter02/readme.md)
 
 ## [3. 사용자 및 권한](./chapter03/readme.md)
