@@ -10,7 +10,7 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>chapter08</artifactId>
-    <name>Chapter 8. Bootstrapping</name>
-    <description>Bootstrapping clients and servers</description>
+    <artifactId>chapter09</artifactId>
+    <name>Chapter 9. Unit testing</name>
+    <description>Unit testing</description>
 </project>

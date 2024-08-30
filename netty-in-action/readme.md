@@ -406,3 +406,9 @@ flowchart LR
   Bootstrap --connet--> ExternalChannel
   AcceptedChannel --bootstrap.group(ctx.channel().eventLoop())--> ExternalChannel
 ```
+
+## 9. 단위 테스트
+
+### EmbeddedChannel
+
+인바운드 또는 아웃바운드 데이터를 EmbeddedChannel로 기록해 channel handler 비즈니스를 테스트할 수 있다.
