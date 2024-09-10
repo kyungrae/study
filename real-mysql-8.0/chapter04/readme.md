@@ -152,7 +152,7 @@ flowchart LR
   end
   subgraph Undo["Undo log"]
     data2["id area\n12 서울"]
-  data1 --변경 전 컬럼 값만\n언두 로그로 복사--> data2
+  data1 --변경 전 칼럼 값만\n언두 로그로 복사--> data2
   end
 ```
 
