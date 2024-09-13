@@ -25,6 +25,9 @@ CPU나 메모리처럼 전기적 특성을 띤 장치의 성능은 빠른 속도
 
 ## 8.3 B-Tree 인덱스
 
+B-Tree는 칼럼의 원래 값을 변형시키지 않고 인덱스 구조체 내에서는 항상 정렬된 상태로 유지한다.
+MySQL의 B-Tree 인덱스는 실제 칼럼 값이 1MB이더라도 1MB 전체의 값을 인덱스 키로 사용하는 것이 아니라 1,000바이트(MyISAM) 또는 3,072바이트까지만 잘러서 인덱스 키로 사용한다.
+
 ### 8.3.1 구조 및 특성
 
 B-Tree는 트리 구조의 최상위에 하나의 루트 노드가 존재하고 그 하위에 자식 노드가 붙어 있는 형태다.
@@ -178,8 +181,85 @@ INDEX B의 dept_no == d002' 조건 같이 작업의 범위를 줄이지 못하�
 
 ## 8.4 R-Tree 인덱스
 
+공간 인덱스는 R-Tree 인덱스 알고리즘을 이용해 2차원의 데이터를 인덱싱하고 검색하는 목적의 인덱스다.
+일반적으로 WGS84(GPS) 기준의 위도, 경도 좌표 저장에 주로 사용된다.
+하지만 CAD/CAM 소프트웨어 또는 회로 디자인 등과 같이 좌표 시스템에 기반을 둔 정보에 대해서는 모두 적용할 수 있다.
+
+MBR이란 "Mininum Bounding Rectangle"의 약자로 해당 도형을 감싸는 최소 크기의 사각형을 의미한다.
+
 ## 8.5 전문 검색 인덱스
+
+전문 검색에서는 문서 본문의 내용에서 사용자가 검색하게 될 키워드를 분석해 내고, 빠른 검색용으로 사용할 수 있게 이러한 키워드로 인덱스로 구축한다.
+키워드의 분석 및 인덱스 구축에는 여러가지 방법이 있을 수 있다.
+전문 검색 인덱스는 문서의 키워드를 인덱싱하는 기법에 따라 크게 단어의 어근 분석과 n-gram 분석 알고리즘으로 구분할 수 있다.
+
+### 어근 분석
+
+어근 분석은 검색어로 선정된 단어의 뿌리인 원형을 찾는 작업이다.
+
+### n-gram
+
+본문을 무조건 몇 글자씩 잘라서 인덱싱하는 방법이다.
+
+### 불용어
+
+검색에서 별 가치가 없는 단어를 모두 필터링해서 제거하는 작업이다.
 
 ## 8.6 함수 기반 인덱스
 
+### 8.6.1 가상 칼럼을 이용한 인덱스
+
+가상 칼럼은 테이블에 새로운 칼럼을 추가하는 것과 같은 효과를 내기 때문에 실제 테이블 구조가 변경된다는 단점이 있다.
+
+```SQL
+CREATE TABLE user(
+  user_id BIGINT,
+  first_name VARCHAR(10),
+  last_name VARCHAR(10),
+  PRIMARY KEY (user_id)
+);
+
+ALTER TABLE user
+  ADD full_name VARCHAR(30) AS (CONCAT(first_name,' ',last_name)) VIRTUAL,
+  ADD INDEX ix_fullname (full_name);
+```
+
+### 8.6.2 함수를 이용한 인덱스
+
+함수를 직접 사용하는 인덱스는 테이블의 구조는 변경하지 않고, 계산된 결괏값의 검색을 빠르게 만들준다.
+함수 기반 인덱스를 제대로 활용하려면 반드시 조건절에 함수 기반 인덱스에 명시된 표현식이 그대로 사용돼야 한다.
+
+```SQL
+CREATE TABLE user(
+  user_id BIGINT,
+  first_name VARCHAR(10),
+  last_name VARCHAR(10),
+  PRIMARY KEY (user_id),
+  INDEX ix_fullname ((CONCAT(first_name,' ',last_name)))
+);
+
+SELECT * FROM user WHERE CONCAT(first_name,' ',last_name)='Matt Lee';
+```
+
 ## 8.7 멀티 밸류 인덱스
+
+하나의 데이터 레코드가 여러 개의 키 값을 가질 수 있는 형태의 인덱스다.
+
+```SQL
+CREATE TABLE user(
+  user_id BIGINT,
+  first_name VARCHAR(10),
+  last_name VARCHAR(10),
+  credit_info JSON,
+  INDEX mx_creditscorees ( (CAST(credit_info->'$.credit_scores' AS UNSIGNED ARRAY)) )
+
+INSERT INTO user VALUES (1, 'Matt', 'Lee', '{"credit_scores":[360, 353, 351]}');
+
+SELECT * FROM user WHERE 360 MEMBER OF(credit_info->'$.credit_scores');
+```
+
+## 8.8 클러스터링 인덱스
+
+## 8.9 유니크 인덱스
+
+## 8.10 외래키
