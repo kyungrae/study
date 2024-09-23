@@ -425,3 +425,21 @@ flowchart LR
 ### Encoder
 
 프로그램에서 관리하는 데이터를 네트워크로 전송하기에 적합한 바이트 스트림으로 변환한다.
+
+## 11. Provided ChannelHandlers and Codecs
+
+### 대용량 데이터 기록
+
+#### Zero Copy File transfer
+
+디바이스(disk, NIC, ...)로부터 데이터를 읽거나 쓸 때, 사용자 프로세스는 system call을 호출한다.
+사용자 프로세스로가 호출한 system call을 처리하기 위해 운영체제는 데이터를 kernel space에서 user space로 또는 user space에서 kernel space로 복사한다.
+메모리를 공유해 불필요한 데이터 복사 작업을 생략할 수 있는 zero copy system call을 이용할 수 있다.
+Zero copy system call을 사용하기 위해 Netty에서는 `FileRegion` 인테퍼이스르 제공한다.
+
+#### ChunkedWriteHandler
+
+대용량 데이터 전송 작업은 네트워크 혼잡을 유발할 수 있다.
+TCP 구현체는 네트워크 혼잡을 예방하기 위해 congestion control 알고리즘을 구현하고 있어 쉽게 대용량 데이터 전송 작업이 지연될 수 있다.
+대용량 데이터 전송 작업이 많아지면 각 작업의 전송 상태를 관리하기 위해 메모리가 부족해지는 문제가 발생할 수 있다.
+OutOfMemory 문제를 예방하기 위해 Netty에서는 `ChunkedWriteHandler` 인터페이스를 제공한다.

@@ -10,7 +10,14 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>chapter10</artifactId>
-    <name>Chapter 10. The codec framework</name>
-    <description>An overview of decoders, encoders and codec</description>
+    <artifactId>chapter11</artifactId>
+    <name>Chapter 11. Provided ChannelHandlers and codecs</name>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java</artifactId>
+            <version>3.25.4</version>
+        </dependency>
+    </dependencies>
 </project>
