@@ -2,6 +2,9 @@
     "C_Cpp.default.compilerPath": "/usr/bin/clang++",
     "files.associations": {
         "iostream": "cpp",
-        "vector": "cpp"
+        "vector": "cpp",
+        "limits": "cpp",
+        "string": "cpp",
+        "ios": "cpp"
     }
 }
