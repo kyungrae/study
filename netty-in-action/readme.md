@@ -443,3 +443,5 @@ Zero copy system call을 사용하기 위해 Netty에서는 `FileRegion` 인테�
 TCP 구현체는 네트워크 혼잡을 예방하기 위해 congestion control 알고리즘을 구현하고 있어 쉽게 대용량 데이터 전송 작업이 지연될 수 있다.
 대용량 데이터 전송 작업이 많아지면 각 작업의 전송 상태를 관리하기 위해 메모리가 부족해지는 문제가 발생할 수 있다.
 OutOfMemory 문제를 예방하기 위해 Netty에서는 `ChunkedWriteHandler` 인터페이스를 제공한다.
+
+## 12. WebSocket
