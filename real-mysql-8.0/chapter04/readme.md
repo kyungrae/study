@@ -145,17 +145,6 @@ InnoDB의 모든 테이블은 프라이머리키 값의 순서대로 디스크�
 InnoDB는 Undo log를 이용해 이 기능을 구현한다.
 여기서 멀티 버전이라 함은 하나의 레코드에 대해 여러 개의 버전이 동시에 관리된다는 의미다.
 
-```mermaid
-flowchart LR
-  subgraph InnoDB["InnoDB 버퍼 풀"]
-    data1["id name area\n12 홍길동 경기"]
-  end
-  subgraph Undo["Undo log"]
-    data2["id area\n12 서울"]
-  data1 --변경 전 칼럼 값만\n언두 로그로 복사--> data2
-  end
-```
-
 ### 4.2.4 Non-Locking Consistent Read
 
 격리 수준이 SERIALIZABLE이 아닌 READ_UNCOMMITTED나 READ_COMMITED, REPEATABLE_READ 수준인 경우 INSERT와 연결되지 않은 순수한 읽기 작업은 다른 트랜잭션의 변경 작업과 관계없이 항상 잠금을 대기하지 않고 바로 실행된다.
@@ -183,7 +172,7 @@ flowchart
 
 데드락 감지 스레드가 주기적으로 잠금 대기 그래프를 검사해 교착 상태에 빠진 트랜잭션들을 찾아서 그중 하나를 강제 종료한다.
 데드락 감지 스레드는 잠금 목록을 검사해야 하기 때문에 잠금 상태가 변경되지 않도록 잠금 테이블에 새로운 잠금을 걸고 데드락을 찾게 된다.
-데드락 감지 스레드가 느려지면 서비스 쿼리를 처리 중인 스레드는 작업을 진행하지 목하고 대기하면서 서비스에 악영향을 미치게 된다.
+데드락 감지 스레드가 느려지면 서비스 쿼리를 처리 중인 스레드는 작업을 진행하지 못하고 대기하면서 서비스에 악영향을 미치게 된다.
 `innodb_deadlock_detect` 시스템 변수를 OFF로 설정하면 데드락 감지 스레드는 작동하지 않는다.
 `innodb_lock_wait_timeout` 시스템 변수를 활성화 해 데드락 상황을 해결할 수 있다.
 
@@ -243,10 +232,7 @@ InnoDB 스토리지 엔진은 버퍼 풀에서 아직 디스크로 기록되지 
 #### 4.2.7.6 버퍼풀의 적재 내용 확인
 
 ```sql
-SELECT
-  it.name table_name,
-  ii.name index_name,
-  ici.n_cached_pages n_cached_pages
+SELECT it.name table_name, ii.name index_name, ici.n_cached_pages n_cached_pages
 FROM information_schema.innodb_tables it
 INNER JOIN information_schema.innodb_indexes ii ON ii.table_id = it.table_id
 INNER JOIN information_schema.innodb_cached_indexes ici ON ici.index_id = ii.index_id

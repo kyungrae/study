@@ -28,21 +28,21 @@ GRANT privilege_list ON db.table TO 'user'@'host';
 ## 3.4 역할
 
 ```sql
-## 역할 생성
+-- 역할 생성
 CREATE ROLE role_emp_read, role_emp_write;
 
-## 역할에 권한 생성
+-- 역할에 권한 생성
 GRANT SELECT ON employees.* TO role_emp_read;
 GRANT INSERT,UPDATE,DELETE ON employees.* TO role_emp_write;
 
-## 계정 생성
+-- 계정 생성
 CREATE USER reader@'127.0.0.1' IDENTIFIED BY 'qwerty';
 CREATE USER writer@'127.0.0.1' IDENTIFIED BY 'qwerty';
 
-## 권한 부여
+-- 권한 부여
 GRANT role_emp_read TO reader@'127.0.0.1';
 GRANT role_emp_write TO writer@'127.0.0.1';
 
-## 명령을 통해 MySQL 로그인 했을 때, 할당된 역할을 자동으로 활성화할 수 있다.
+-- 명령을 통해 MySQL 로그인 했을 때, 할당된 역할을 자동으로 활성화할 수 있다.
 SET GLOBAL activate_all_roles_on_loin=ON;
 ```

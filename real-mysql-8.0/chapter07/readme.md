@@ -83,10 +83,10 @@ MySQL 서버의 암호화 기능(TDE)을 사용한다면 MySQL 서버는 인덱�
 암호화의 결과로 값은 랜덤한 값을 변경되기 때문에 cluster key의 장점 중 하나인 비슷한 값을 비슷한 위치에 저장해 디스크 random access를 줄이는 효과는 없을 것 같다.
 
 ```sql
-## 응용 프로그램 index 검색 O / TDE index 검색  O
+-- 응용 프로그램 index 검색 O / TDE index 검색  O
 SELECT * FROM app_user WHERE enc_birth_year=#{encryptedYear};
 
-## 응용 프로그램 index 검색 X / TDE index 검색  O
+-- 응용 프로그램 index 검색 X / TDE index 검색  O
 SELECT * FROM app_user WHERE enc_birth_year BETWEEN #{encryptedMinYear} AND #{encryptedMaxYear};
 SELECT * FROM app_user ORDER BY enc_birth_year LIMIT 10;
 ```
