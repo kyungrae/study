@@ -7,10 +7,10 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.util.ByteProcessor;
+import io.netty.util.CharsetUtil;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.util.Random;
 
 public class ByteBufExamples {
@@ -90,7 +90,7 @@ public class ByteBufExamples {
     }
 
     public static void byteBufSlice() {
-        Charset utf8 = StandardCharsets.UTF_8;
+        Charset utf8 = CharsetUtil.UTF_8;
         ByteBuf buf = Unpooled.copiedBuffer("Netty in Action rocks!", utf8);
         ByteBuf sliced = buf.slice(0, 14);
         System.out.println(sliced.toString(utf8));
@@ -99,7 +99,7 @@ public class ByteBufExamples {
     }
 
     public static void byteBufCopy() {
-        Charset utf8 = StandardCharsets.UTF_8;
+        Charset utf8 = CharsetUtil.UTF_8;
         ByteBuf buf = Unpooled.copiedBuffer("Netty in Action rocks!", utf8);
         ByteBuf copy = buf.copy(0, 14);
         System.out.println(copy.toString(utf8));
@@ -108,7 +108,7 @@ public class ByteBufExamples {
     }
 
     public static void byteBufSetGet() {
-        Charset utf8 = StandardCharsets.UTF_8;
+        Charset utf8 = CharsetUtil.UTF_8;
         ByteBuf buf = Unpooled.copiedBuffer("Netty in Action rocks!", utf8);
         System.out.println((char) buf.getByte(0));
         int readerIndex = buf.readerIndex();
@@ -120,7 +120,7 @@ public class ByteBufExamples {
     }
 
     public static void byteBufWriteRead() {
-        Charset utf8 = StandardCharsets.UTF_8;
+        Charset utf8 = CharsetUtil.UTF_8;
         ByteBuf buf = Unpooled.copiedBuffer("Netty in Action rocks!", utf8);
         System.out.println((char) buf.readByte());
         int readerIndex = buf.readerIndex();

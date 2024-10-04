@@ -102,7 +102,7 @@ flowchart TB
 - unreliable 데이터 전송
 - multicast
   - multicast 서버는 multicast 그룹 대상으로 데이터를 전송
-  - multicast 그룹에 속한 클라이언트는 데이터를 수신 가ㅇ
+  - multicast 그룹에 속한 클라이언트는 데이터를 수신 가능
   - muticast group address range (224.0.0.0 ~ 239.255.255.255)
   - multicast를 지원하지 않는 라우터에서는 tunneling 기술 필요
 - broadcast
