@@ -97,23 +97,23 @@ SELECT * FROM employees ORDER BY last_name LIMIT 100000,1;
 SELECT * FROM INFORMATION_SCHEMA.OPTIMIZER+TRACE \G
 
 ...
-            "filesort_priority_queue_optimization": {
-              "limit": 100001
-            } /* filesort_priority_queue_optimization */,
-            "filesort_execution": [
-            ] /* filesort_execution */,
-            "filesort_summary": {
-              "memory_available": 262144,
-              "key_size": 32,
-              "row_size": 169,
-              "max_rows_per_buffer": 1551,
-              "num_rows_estimate": 300030,
-              "num_rows_found": 300024,
-              "num_initial_chunks_spilled_to_disk": 82,
-              "peak_memory_used": 262144,
-              "sort_algorithm": "std::stable_sort",
-              "sort_mode": "<fixed_sort_key, packed_additional_fields>"
-            } /* filesort_summary */
+  "filesort_priority_queue_optimization": {
+    "limit": 100001
+  } /* filesort_priority_queue_optimization */,
+  "filesort_execution": [
+  ] /* filesort_execution */,
+  "filesort_summary": {
+    "memory_available": 262144,
+    "key_size": 32,
+    "row_size": 169,
+    "max_rows_per_buffer": 1551,
+    "num_rows_estimate": 300030,
+    "num_rows_found": 300024,
+    "num_initial_chunks_spilled_to_disk": 82,
+    "peak_memory_used": 262144,
+    "sort_algorithm": "std::stable_sort",
+    "sort_mode": "<fixed_sort_key, packed_additional_fields>"
+  } /* filesort_summary */
 ...
 ```
 
@@ -180,11 +180,122 @@ ORDER BY나 GROUP BY 같은 처리는 결과가 스트리밍되는 것을 불가
 
 인덱스를 사용한 정렬 방식만 스트링 형태의 처리이며, 조인에서 드라이빙 테이블만 정렬과 임시 테이블을 이용한 정렬 두 방식 모두 버퍼링된 후 정렬된다.
 
+#### 9.2.3.4 정렬 상태 변수
+
+```SQL
+FLUSH STATUS;
+SHOW STATUS LIKE 'SORT%';
+```
+
 ### 9.2.4 GROUP BY 처리
+
+#### 9.2.4.1 인덱스 스캔을 이용하는 GROUP BY
+
+조인의 드라이빙 테이블에 속한 칼럼만 이용해 그루핑할 때 GROUP BY 칼럼으로 인덱스가 있다면 그 인덱스를 차례대로 읽으면서 그루핑 작업을 수행하고 그 결과로 조인을 처리한다.
+
+#### 9.2.4.2 루스 인덱스 스캔을 이용하는 GROUP BY
+
+인덱스의 레코드를 건너뛰면서 필요한 부분만 읽어서 가져오는 것을 의미한다.
+인덱스 스캔을 사용할 때는 실행 계획의 Extra 칼럼에 "Using index for group-by" 코멘트가 표시된다.
+
+```SQL
+-- INDEX (emp_no, first_date)
+SELECT emp_no FROM salaries WHERE first_data='1985-03-01' GROUP BY emp_no;
+```
+
+#### 9.2.4.3 임시 테이블을 사용하는 GROUP BY
+
+인덱스를 사용하지 못할 때는 임시 테이블을 만들어 처리한다.
+GROUP BY가 필요한 경우 내부적으로 GROUP BY 절의 칼럼들로 구성된 유니크 인덱스를 가진 임시 테이블을 만들어서 중복 제거와 집합 함수 연산을 수행한다.
+조인 결과를 한 건씩 가져와 임시 테이블에서 중복 체크를 하면서 INSERT 또는 UPDATE를 실행한다.
+
+GROUP BY가 사용된 쿼리는 그루핑되는 칼럼을 기준으로 묵시적인 정렬을 수행했지만 MySQL 8.0 버전부터는 묵시적인 정렬을 실행하지 않는다.
+
+```SQL
+SELECT e.last_name, AVG(s.salary)
+FROM employees e, salaries s
+WHERE s.emp_no = e.emp_no
+GROUP BY e.last_name;
+```
+
+```SQL
+CREATE TABLE ... (
+  last_name varchar(16),
+  salary INT,
+  UNIQUE INDEX ux_lastname (last_name)
+);
+```
 
 ### 9.2.5 DISTINCT 처리
 
+#### 9.2.5.1 SELECT DISTINCT
+
+SELECT 되는 레코드 중에서 유니크한 레코드만 가져오고자 하면 SELECT DISTINCT 형태의 쿼리 문장을 사용한다.
+이 경우 GROUP BY와 동일한 방식으로 처리된다.
+
+```SQL
+SELECT DISTINCT emp_no FROM salaries;
+SELECT emp_no FROM salaries GROUP BY emp_no;
+```
+
+SELECT는 레코드(튜플)를 유니크하게 SELECT하는 것이지, 특정 컬럼만 유니크하게 조회하는 것이 아니다.
+
+#### 9.2.5.2 집합 함수와 함께 사용된 DISTINCT
+
+집합 함수 내에서 사용된 DISTINCT는 그 집합 함수의 인자로 전달된 칼럼 값이 유니크한 것들을 가져온다.
+아래 쿼리는 내부적으로 COUNT(DISTINCT s.salary)를 처리하기 위해 임시 테이블을 사용한다.
+하지만 쿼리의 실행 계획에는 임시 테이블(Using temporary)을 사용한다는 메시지는 표시되지 않는다.
+salary 칼럼에 유니크 인덱스를 생성한 임시 테이블을 사용한다.
+
+```SQL
+-- 1개의 임시 테이블
+SELECT COUNT(DISTINCT s.salary)
+FROM employees e, salaries s
+WHERE e.emp_no = s.emp_no
+AND e.emp_no BETWEEN 100001 AND 100100;
+
+-- 2개의 임시 테이블
+SELECT COUNT(DISTINCT s.salary), COUNT(DISTINCT e.last_name)
+FROM employees e, salaries s
+WHERE e.emp_no = s.emp_no
+AND e.emp_no BETWEEN 100001 AND 100100;
+```
+
+인덱스된 칼럼에 대해 DISTINCT 처리를 수행할 때는 인덱스를 풀 스캔하거나 레인지 스캔하면서 임시 테이블 없이 최적화된 처리를 수행할 수 있다.
+
+```SQL
+SELECT COUNT(DISTINCT emp_no) FROM employees;
+```
+
 ### 9.2.6 내부 임시 테이블 활용
+
+MySQL 엔진이 스토리지 엔진으로부터 받아온 레코드를 정렬하거나 그루핑할 때는 내부적인 임시 테이블(Internal temporary table)을 사용한다.
+임시 테이블은 처음에는 메모리에 생성됐다가 테이블의 크기가 커지면 디스크로 옮겨진다.
+
+#### 9.2.6.1 메모리 임시 테이블과 디스크 임시 테이블
+
+메모리는 TempTable이라는 스토리지 엔진을 사용하고, 디스크에 저장되는 임시 테이블은 InnoDB 스토리지 엔진(또는 TempTable 스토리지 엔진의 MMAP 파일 버전)을 사용하도록 개선됐다.
+
+#### 9.2.6.2 임시 테이블이 필요한 경우
+
+- ORDER BY와 GROUP BY에 명시된 칼럼이 다른 쿼리
+- ORDER BY나 GROUP BY에 명시된 칼람이 조인의 순서상 첫 번째 테이블이 아닌 경우
+- DISTINCT와 ORDER BY가 동시에 쿼리에 존재하는 경우 또는 DISTINCT가 인덱스로 처리되지 못하는 경우
+- UNION이나 UNION DISTINCT가 사용된 쿼리(select_type 칼럼이 UNION RESULT인 경우)
+- 쿼리의 실행 계획에서 select_type이 DERIVED인 경우
+
+#### 9.2.6.3 임시 테이블이 디스크에 생성되는 경우
+
+- UNION이나 UNION AL에서 SELECT되는 칼럼 중에서 길이가 512바이트 이상인 크기의 칼림이 있는 경우
+- GROUP BY나 DISTINCT 칼럼에서 512바이트 이상인 크기의 칼림이 있는 경우
+- 메모리 임시 테이블 크기가 (MEMORY 스토리지 엔진에서) tmp_table_size 또는 max_heap_table_size 시스템 변수보다 크거나 (TempTable 스토리지 엔진에서) temptable_max_ram 시스템 변수 값보다 큰 경우
+
+#### 9.2.6.4 임시 테이블 관련 상태 변수
+
+```SQL
+FLUSH STATUS;
+SHOW SESSION STATUS LIKE 'Created_tmp%';
+```
 
 ## 9.3 고급 최적화
 
