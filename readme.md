@@ -32,6 +32,5 @@
 
 - Algorithm
 - Real MySQL 2.0 1
-- Netty in action
 
 ## DONE
