@@ -5,6 +5,11 @@
         "vector": "cpp",
         "limits": "cpp",
         "string": "cpp",
-        "ios": "cpp"
+        "ios": "cpp",
+        "__config": "cpp",
+        "tuple": "cpp",
+        "variant": "cpp",
+        "array": "cpp",
+        "execution": "cpp"
     }
 }
