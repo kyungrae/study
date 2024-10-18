@@ -13,7 +13,7 @@ EXPLAIN 명령으로 쿼리의 실행 계획을 확인할 수 있는데, 실행 
 2. SQL의 파싱 정보(파스 트리)를 확인하면서 어떤 테이블부터 읽고 어떤 인덱스를 이용해 테이블을 읽을지 선택한다.
 3. 두 번째 단계에서 결정된 테이블의 읽기 순서나 선택된 인덱스를 이용해 스토리지 엔진으로부터 데이터를 가져온다.
 
-첫 번째 단계를 **SQL 파싱**이라고 하며, MySQL 서버의 **SQL 파서**라는 모듈로 처리한다.
+첫 번째 단계를 **SQL 파싱**이라고 하며, **SQL 파서**라는 모듈로 처리한다.
 SQL 문장이 문법적으로 잘못됐다면 이 단계에서 걸러진다. 또한 이 단계에서 **SQL 파스 트리**가 만들어진다.
 MySQL 서버는 SQL 파스 트리를 이용해 쿼리를 실행한다.
 
@@ -34,19 +34,18 @@ MySQL 서버는 SQL 파스 트리를 이용해 쿼리를 실행한다.
 
 #### 규칙 기반 최적화
 
-대상 테이블의 레코드 건수나 선택도 등을 고려하지 않고 옵티마이저에 내장된 우선순위에 따라 실행 계획을 수립하는 방식이다.
+옵티마이저에 내장된 우선순위에 따라 실행 계획을 수립하는 방식이다.
 
 #### 비용 기반 최적화
 
-쿼리를 처리하기 위한 여러 가지 가능한 방법을 만들고, 각 단위 작업의 비용 정보와 대상 테이블의 예측된 통계 정보를 이용해 실행 계획별 비용을 산출한다.
-이렇게 산출된 실행 방법별로 비용이 최소로 소요되는 처리 방식을 선택해 쿼리를 실행한다.
+쿼리를 처리하기 위한 여러 가지 방법을 만들고, 각 단위 작업의 비용 정보와 대상 테이블의 예측된 통계 정보를 이용해 실행 계획별 비용을 산출한다.
+산출된 실행 방법별로 비용이 최소로 소요되는 처리 방식을 선택해 쿼리를 실행한다.
 
 ## 9.2 기본 데이터 처리
 
 ### 9.2.1 풀 테이블 스캔과 풀 인덱스 스캔
 
-InnoDB 스토리지 엔진은 특정 테이블의 연속된 데이터 페이지가 읽히면 백그라운드 스레드에 의해 **리드 어헤드**(Read ahead) 작업이 자동으로 시작된다.
-리드 어헤드란 어떤 영역의 데이터가 앞으로 필요해지리라는 것을 예측해서 요청이 오기 전에 미리 디스크에서 읽어 InnoDB의 버퍼 풀에 가져다 두는 것을 의미한다.
+어떤 영역의 데이터가 앞으로 필요해지리라는 것을 예측해서 요청이 오기 전에 미리 디스크에서 읽어 InnoDB의 버퍼 풀에 가져다 두는 것을 의미한다.
 즉, 풀 테이블 스캔이 실행되면 처음 몇 개의 데이터 페이지는 포그라운드 스레드가 페이지 읽기를 실행하지만 특정 시점부터는 읽기 작업을 백그라운드 스레드로 넘긴다.
 리드 어헤드는 풀 테이블 스캔에서만 사용되는 것이 아니라 풀 인덱스 스캔에서도 동일하게 사용된다.
 
@@ -73,7 +72,7 @@ SELECT COUNT(*) FROM salaries;
 
 #### 9.2.3.1 소트 버퍼(Sort buffer)
 
-정렬을 수행하기 위해 별도의 메모리 공간을 할당받아서 사용하는데, 이 메모리 공간을 소트 버퍼(sort buffer)라고 한다.
+정렬을 수행하기 위해 별도의 메모리 공간을 할당받아서 사용하는데, 이 메모리 공간을 **소트 버퍼**(sort buffer)라고 한다.
 소트 버퍼는 정렬이 필요한 경우에만 할당되며, 버퍼의 크기는 정렬해야 할 레코드의 크기에 따라 가변적으로 증가하지만 최대 사용 가능한 소트 버퍼의 공간은 sort_buffer_size라는 시스템 변수로 설정할 수 있다.
 
 정렬해야 할 레코드의 건수가 소트 버퍼로 할당된 공간보다 크면 정렬해야 할 레코드를 여러 조각으로 나눠서 처리한다.
@@ -81,8 +80,8 @@ SELECT COUNT(*) FROM salaries;
 그리고 다음 레코드를 가져와서 다시 정렬해서 반복적으로 디스크에 임시 저장한다.
 각 버퍼 크기만큼 정렬된 레코드를 다시 Merlti-merge(병합)하면서 정렬을 수행한다.
 
-소트 버퍼를 크게 설정하면 디스크를 사용하지 않아서 빨라질 것을 생각할 수 있지만, 벤치마크 결과로는 큰 차이를 보이진 않았다.
-일반적인 트랜잭션 처리용 MySQL 서버의 소트 버퍼 크기는 56KB에서 1MB 미만이 적절해 보인다.
+소트 버퍼를 크게 설정하면 빨라질 것을 기대할 수 있지만, 벤치마크 결과로는 큰 차이를 보이진 않았다.
+일반적인 소트 버퍼 크기는 56KB에서 1MB 미만이 적절해 보인다.
 
 #### 9.2.3.2 정렬 알고리즘
 
@@ -167,17 +166,15 @@ ORDER BY에 명시된 칼럼이 드라이빙 테이블에 속하고, ORDER BY의
 
 ##### 9.2.3.3.4 정렬 처리 방법의 성능 비교
 
-###### 9.2.3.3.4.1 스트리밍 방식
+- 스트리밍 방식  
+서버 쪽에서 처리할 데이터가 얼마인지와 관계없이 조건에 일치하는 레코드가 검색될 때마다 바로 클라이언트에게 전송해 주는 방식을 의미한다.
+스트리밍 방식으로 처리되는 쿼리에서 LIMIT처럼 결과 건수를 제한하는 조건들은 쿼리의 실행 시간을 줄여줄 수 있다.
 
-서버 쪽에서 처리할 데이터가 얼마인지와 관계없이 조건에 일치하는 레코드가 검색될 때마다 바로바로 클라이언트에게 전송해 주는 방식을 의미한다.
-스트리밍 방식으로 처리되는 쿼리에서 LIMIT처럼 결과 건수를 제한하는 조건들은 쿼리의 전체 실행 시간을 상당히 줄여줄 수 있다.
-이것은 풀 테이블 스캔 결과가 아무런 버퍼링 처리나 필터링 과정 없이 바로 클라이언트로 스트리밍되기 때문이다.
+- 버퍼링 방식  
+ORDER BY나 GROUP BY 같은 처리는 결과가 스트리밍되는 것을 불가능하게 한다.
+우선 WHERE 조건에 일치하는 모든 레코드를 가져온 후, 정렬하거나 그루핑해서 차례대로 보내야 하기 때문이다.
 
-###### 9.2.3.3.4.2 버퍼링 방식
-
-ORDER BY나 GROUP BY 같은 처리는 결과가 스트리밍되는 것을 불가능하게 한다. 우선 WHERE 조건에 일치하는 모든 레코드를 가져온 후, 정렬하거나 그루핑해서 차례대로 보내야 하기 때문이다.
-
-인덱스를 사용한 정렬 방식만 스트링 형태의 처리이며, 조인에서 드라이빙 테이블만 정렬과 임시 테이블을 이용한 정렬 두 방식 모두 버퍼링된 후 정렬된다.
+인덱스를 사용한 정렬 방식만 스트리밍 형태의 처리이며, 조인에서 드라이빙 테이블만 정렬 방식과 임시 테이블을 이용한 정렬 방식 모두 버퍼링된 후 정렬된다.
 
 #### 9.2.3.4 정렬 상태 변수
 
@@ -208,8 +205,6 @@ SELECT emp_no FROM salaries WHERE first_data='1985-03-01' GROUP BY emp_no;
 GROUP BY가 필요한 경우 내부적으로 GROUP BY 절의 칼럼들로 구성된 유니크 인덱스를 가진 임시 테이블을 만들어서 중복 제거와 집합 함수 연산을 수행한다.
 조인 결과를 한 건씩 가져와 임시 테이블에서 중복 체크를 하면서 INSERT 또는 UPDATE를 실행한다.
 
-GROUP BY가 사용된 쿼리는 그루핑되는 칼럼을 기준으로 묵시적인 정렬을 수행했지만 MySQL 8.0 버전부터는 묵시적인 정렬을 실행하지 않는다.
-
 ```SQL
 SELECT e.last_name, AVG(s.salary) FROM employees e, salaries s WHERE s.emp_no = e.emp_no GROUP BY e.last_name;
 
@@ -220,15 +215,13 @@ CREATE TABLE ... (last_name varchar(16), salary INT, UNIQUE INDEX ux_lastname (l
 
 #### 9.2.5.1 SELECT DISTINCT
 
-SELECT 되는 레코드 중에서 유니크한 레코드만 가져오고자 하면 SELECT DISTINCT 형태의 쿼리 문장을 사용한다.
-이 경우 GROUP BY와 동일한 방식으로 처리된다.
+SELECT 되는 레코드 중에서 유니크한 레코드(튜플)만 가져오고자 하면 SELECT DISTINCT 형태의 쿼리 문장을 사용한다.
+특정 컬럼만 유니크하게 조회하는 것이 아니다.
 
 ```SQL
 SELECT DISTINCT emp_no FROM salaries;
 SELECT emp_no FROM salaries GROUP BY emp_no;
 ```
-
-SELECT는 레코드(튜플)를 유니크하게 SELECT하는 것이지, 특정 컬럼만 유니크하게 조회하는 것이 아니다.
 
 #### 9.2.5.2 집합 함수와 함께 사용된 DISTINCT
 
@@ -243,10 +236,6 @@ WHERE e.emp_no = s.emp_no AND e.emp_no BETWEEN 100001 AND 100100;
 ```
 
 인덱스된 칼럼에 대해 DISTINCT 처리를 수행할 때는 인덱스를 풀 스캔하거나 레인지 스캔하면서 임시 테이블 없이 최적화된 처리를 수행할 수 있다.
-
-```SQL
-SELECT COUNT(DISTINCT emp_no) FROM employees;
-```
 
 ### 9.2.6 내부 임시 테이블 활용
 
@@ -295,13 +284,16 @@ SET SESSION optimizer_switch='index_merge=on,index_merge_union=on,...';
 SELECT /** SET_VAR(optimizer_switch='condition_fanout_filter=off') */ ... FROM ...
 ```
 
-#### 9.3.1.1 MRR(Multi-Range Read)
+#### 9.3.1.1 Multi-Range Read(mrr)
 
-세컨더리 인덱스에서 범위 검색을 이용해 레코드를 읽을 때 세컨더리 인덱스에서 검색된 엔트리 수만큼 베이스 테이블을 읽어야 한다.
-MRR 방식은 세컨더리 인덱스에서 조건에 맞는 엔트리들을 키 값에 따라 정렬해 보관하고 정렬된 키의 순서대로 베이스 테이블을 읽는다.
-MRR 작업으로 디스크 랜덤 엑세스를 줄이고 쿼리 결과가 ID로 정렬된다.
+인덱스 또는 드라이빙 테이블에서 레코드를 읽을 때 검색된 레코드 수만큼 베이스(드리븐) 테이블을 읽어야 한다.
+MRR 방식은 조건에 맞는 엔트리를 키 값에 따라 정렬해 보관하고 정렬된 키의 순서대로 베이스(드리븐) 테이블을 읽는다.
+MRR 작업은 디스크 랜덤 엑세스를 줄이고 쿼리 결과가 ID로 정렬된다.
 
-#### 9.3.1.2 블록 네스티드 루프 조인(Block Nested Loop)
+mrr 옵션은 MRR 최적화를 활성화할지 여부를 결정한다.
+mrr_cost_based 옵션은 비용을 기반으로 MRR 최적화를 수행할지, 아니면 가능할 때마다 MRR을 적용할지를 결정하는 옵션이다.
+
+#### 9.3.1.2 블록 네스티드 루프 조인(block_nested_loop)
 
 **네스티드 루프 조인**(Nested Loop Join)은 드라이빙 테이블의 레코드를 한 건 읽어서 드리븐 테이블의 일치하는 레코드를 찾아서 조인을 수행한다.
 
@@ -323,18 +315,6 @@ for(row1 IN driving_table) {
 인덱스를 범위 제한 조건으로 사용하지 못한다고 하더라도 인덱스에 포함된 칼럼 조건이 있다면 스토리지 엔진으로 전달해 인덱스에서 읽을 엔트리를 최대한 필터링한다.
 
 ```SQL
-SET optimizer_switch='index_condition_pushdown=off'
-EXPLAIN SELECT* FROM employees WHERE last_name='Acton' AND first_name LIKE '%sal';
-```
-
-| id | select_type | table | type | key | key_len | Extra |
-|---|---|---|---|---|---|---|
-| 1 | SIMPLE | employees | ref | ix_lastname_firstname | 66 | Using where |
-
-여기서 "**Using where**"는 InnoDB 스토리지 엔진이 읽어서 반환해 준 레코드가 인덱스를 사용할 수 없는 WHERE 조건에 일치하는지 검사하는 과정이다.
-
-```SQL
-SET optimizer_switch='index_condition_pushdown=on'
 EXPLAIN SELECT* FROM employees WHERE last_name='Acton' AND first_name LIKE '%sal';
 ```
 
@@ -345,6 +325,7 @@ EXPLAIN SELECT* FROM employees WHERE last_name='Acton' AND first_name LIKE '%sal
 #### 9.3.1.4 인덱스 확장(use_index_extensions)
 
 InnoDB 스토리지 엔진을 사용하는 테이블에서 세컨더리 인덱스에 자동으로 추가된 프라이머리 키를 활용할지를 결정하는 옵션이다.
+실행 계획의 key_len 칼럼은 이 쿼리가 인덱스를 구성하는 칼럼 중에서 어느 부분(칼럼)까지 사용했는지를 바이트 수로 보여주는데, from_date 칼럼(3바이트)과 dept_emp(16바이트)까지 사용했다는 것을 알 수 있다.
 
 ```SQL
 EXPLAIN SELECT * FROM dept_emp WHERE from_date='1987-07-25' AND dept_no='d001';
@@ -353,8 +334,6 @@ EXPLAIN SELECT * FROM dept_emp WHERE from_date='1987-07-25' AND dept_no='d001';
 | id | select_type | table | type | key | key_len | Extra |
 |---|---|---|---|---|---|---|
 | 1 | SIMPLE | dept_emp | ref | ix_fromdate | 19 | Using index |
-
-실행 계획의 key_len 칼럼은 이 쿼리가 인덱스를 수성하는 칼럼 중에서 어느 부분(칼럼)까지 사용했는지를 바이트 수로 보여주는데, 19바이트가 표시된 것을 보면 from_date 칼럼(3바이트)과 dept_emp(16바이트)까지 사용했다는 것을 알 수 있다.
 
 #### 9.3.1.5 인덱스 머지(index_merge)
 
@@ -390,6 +369,7 @@ EXPLAIN SELECT * FROM employees WHERE first_name='Matt' OR hire_date = '1987-03-
 #### 9.3.1.8 인덱스 머지 - 정렬 후 합집합(index_merge_sort_union)
 
 인덱스 머지의 "**Using sort union**"는 인덱스 검색 결과를 병합하기 전에 정렬이 필요할 때 사용되는 최적화다.
+ix_hiredate 인덱스 범위 검색은 ID로 정렬되어 있지 않아 중복을 제거하기 위해 정렬 작업이 추가로 필요하다.
 
 ```SQL
 EXPLAIN SELECT * FROM employees WHERE first_name='Matt' OR hire_date BETWEEN '1987-03-01' AND '1987-03-31';;
@@ -402,13 +382,138 @@ EXPLAIN SELECT * FROM employees WHERE first_name='Matt' OR hire_date BETWEEN '19
 #### 9.3.1.9 세미 조인(semijoin)
 
 다른 테이블과 조인을 수행하지 않고 다른 테이블에서 조건에 일치하는 레코드가 있는지 없는지만 체크하는 쿼리를 **세미 조인**(Semi-Join)이라고 한다.
-MySQL에서 세미 조인 최적화 전략으로 Table Pull-out, Duplicate Weed-out, First Match, Loose Scan, Materialization가 있다.
+세미 조인 최적화 전략으로 Table Pull-out, Duplicate Weed-out, First Match, Loose Scan, Materialization가 있다.
 
-Table pull-out 최적화 전략은 사용 가능하면 항상 세미 조인보다 좋은 성능을 내기 때문에 별도 제어하는 옵티마이저 옵션이 없다.
-First Match와 Loose Scan 최적화 전략은 각각 firstmatch와 loosescan 옵티마이저 옵션으로 제어할 수 있다.
-Duplicate Weed-out과 Materalization 최적화 전략은 materalization 옵티마이저 옵션으로 제어할 수 있다.
-semijoin 옵티마이저 옵션은 firstmatch, loosescan, materalization 옵티마이저 옵션을 한 번에 제어할 수 있는 옵션이다.
+#### 9.3.1.10 테이블 풀-아웃(Table Pull-out)
+
+세미 조인의 서브쿼리에 사용된 테이블을 끄집어낸 후에 inner join 쿼리로 재작성하는 형태의 최적화다.
+아래 쿼리 실행 계획에서 id 칼럼 값이 모두 1이라는 것은 조인으로 처리됐음을 의미한다.
+
+```SQL
+EXPLAIN SELECT * FROM employees e WHERE e.emp_no IN (
+  SELECT de.emp_no FROM dept_emp de WHERE de.dept_no = 'd009'
+);
+```
+
+| id | select_type | tabe | type | key | rows | Extra |
+|---|---|---|---|---|---|---|
+| 1 | SIMPLE | de | ref | PRIMARY | 46012 | Using index |
+| 1 | SIMPLE | e | eq_ref | PRIMARY | 1 | NULL |
+
+#### 9.3.1.11 퍼스트 매치(firstmatch)
+
+서브 쿼리가 드리븐 테이블이 되고 조건이 일치하는 entry가 여러개 일 때, 조건에 일치하는 첫 레코드만 반환해 최적화를 수행한다.
+
+```SQL
+EXPLAIN SELECT * FROM employees e WHERE e.first_name = 'Matt' AND e.emp_no IN (
+  SELECT t.emp_no FROM titles t WHERE t.from_date BETWEEN '1995-01-01' AND '1995-01-30'
+);
+```
+
+| id | select_type | tabe | type | key | rows | Extra |
+|---|---|---|---|---|---|---|
+| 1 | SIMPLE | e | ref | ix_firstname | 233 | NULL |
+| 1 | SIMPLE | t | ref | PRIMARY | 1 | Using where; Using index; FirstMatch(e) |
+
+#### 9.3.1.12 루스 스캔(loosescan)
+
+서브쿼리가 드라이빙 테이블이 되고 루스 인덱스 스캔을 사용할 수 있을 때 사용할 수 있는 최적화이다.
+
+```SQL
+EXPLAIN SELECT * FROM departments d WHERE d.dept_no IN (SELECT de.dept_no FROM dept_emp de);
+```
+
+| id | tabe | type | key | rows | Extra |
+|---|---|---|---|---|---|
+| 1 | de | ref | PRIMARY | 331143 |  Using index; LooseScan |
+| 1 | d | eq_ref | PRIMARY | 1 | NULL |
+
+#### 9.3.1.13 구체화(materialization)
+
+서브 쿼리 결과를 index가 있는 임시 테이블을 만들어 조인을 수행한다.
+Index된 칼럼은 조인 조건에 명시된 칼럼으로 중복을 제거하기 위해 사용된다.
+
+```SQL
+EXPLAIN SELECT * FROM employees e WHERE e.emp_no IN (
+  SELECT de.emp_no FROM dept_emp de WHERE de.from_date='1995-01-01'
+);
+```
+
+| id | select_type | tabe | type | key | ref |
+|---|---|---|---|---|---|
+| 1 | SIMPLE | \<subquery2> | ALL | NULL | NULL |
+| 1 | SIMPLE | e | eq_ref | PRIMARY | \<subquery2>.emp_no |
+| 2 | MATERIALIZED | de | ref | ix_fromdate | const |
+
+#### 9.3.1.14 중복 제거(duplicateweedout)
+
+조인 결과에서 임시 테이블을 이용해 중복을 제거한다.
+
+```SQL
+EXPLAIN SELECT * FROM employees e WHERE e.emp_no IN (
+  SELECT s.emp_no FROM salaries s WHERE s.salary > 150000
+);
+
+SELECT e.* FROM employees e, salaries s
+WHERE e.emp_no = s.emp_no AND s.salary > 150000
+GROUP BY e.emp_no;
+```
+
+| id | select_type | tabe | type | key | Extra |
+|---|---|---|---|---|---|
+| 1 | SIMPLE | s | range | ix_salary | Using where; Using index; Start temporary |
+| 1 | SIMPLE | e | eq_ref | PRIMARY | End temporary |
+
+#### 9.3.1.15 컨디션 팬아웃(condition_fanout_filter)
+
+옵티마이저가 조건에 만족하는 레코드 비율울 예측할 수 있게 실행 계획의 filtered 칼럼 값을 예측한다.
+
+#### 9.3.1.16 파생 테이블 머지(derived_merge)
+
+FROM 절에 사용된 서브쿼리를 외부 쿼리와 병합할 때 임시 테이블을 사용하지 않도록한다.
+
+#### 9.3.1.17 인비저블 인덱스(use_invisible_index)
+
+옵티마이저가 INVISIBLE 인덱스를 사용 가능하도록 만드는 설정이다.
+
+#### 9.3.1.18 스킵 스캔(skip_scan)
+
+복합 인덱스의 선행 칼럼이 조건절에 사용되지 않았더라도 후행 칼럼의 조건만으로도 인덱스를 이용해 검색 작업 범위를 줄인다.
+선행 칼럼의 다양한 값을 가지는 경우 스킵 스캔 최적화는 비효율적이다.
+
+#### 9.3.1.19 해시 조인(hash_join)
+
+조인 조건의 칼럼이 인덱스가 없거나 조인 대상 테이블 중 일부의 레코드 건수가 적은 경우에 대해서만 해시 조인 알고리즘을 사용한다.
+해시 조인은 빌드 단계(Build-phase)와 프로브 단계(Probe_phase)로 나누어 처리된다.
+빌드 단계에서는 조인 대상 테이블 중에서 레코드 건수가 적어 해시 테이블로 만들기 용이한 테이블을 골라 메모리에 해시 테이블을 생성하는 작업을 수행한다.
+프로브 단계는 나머지 테이블의 레코드를 읽어 해시 테이블의 일치하는 레코드를 찾는 과정을 의미한다.
+
+```SQL
+EXPLAIN FORMAT=TREE SELECT * FROM dept_emp de, employees e WHERE de.from_date = '1995-01-01' AND e.emp_no<109004\G
+```
+
+```plaintext
+EXPLAIN: -> Inner hash join (no condition)  (cost=1.71e+6 rows=8.55e+6)
+    -> Filter: (e.emp_no < 109004)  (cost=15297 rows=149960)
+        -> Index range scan on e using PRIMARY over (emp_no < 109004)  (cost=15297 rows=149960)
+    -> Hash
+        -> Index lookup on de using ix_fromdate (from_date=DATE'1995-01-01')  (cost=59.4 rows=57)
+```
+
+#### 9.3.1.20 인덱스 정렬 선호(prefer_ordering_index)
+
+옵티마이저는 ORDER BY 또는 GROUP BY를 인덱스를 사용해 처리 가능한 경우 쿼리의 실행 계획에서 인덱스 가중치를 높이 설정한다.
+간혹 아래 쿼리를 실행할 때 ORDER BY 가중치를 너무 높게 측정해 ix_hiredate 인덱스를 사용하지 못하는 경우가 있다.
+옵티마이저가 자주 실수하는 경우 prefer_ordering_index 옵션으로 off로 변경하면 된다.
+
+```SQL
+EXPLAIN SELECT * FROM employees WHERE hire_date BETWEEN '1985-01-01' AND '1985-02-01' ORDER BY emp_no;
+```
 
 ### 9.3.2 조인 최적화 알고리즘
+
+#### 9.3.2.1 Exhaustive 검색 알고리즘
+
+#### 9.3.2.2 Greedy 검색 알고리즘
 
 ## 9.4 쿼리 힌트
