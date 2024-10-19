@@ -220,7 +220,6 @@ SELECT 되는 레코드 중에서 유니크한 레코드(튜플)만 가져오고
 
 ```SQL
 SELECT DISTINCT emp_no FROM salaries;
-SELECT emp_no FROM salaries GROUP BY emp_no;
 ```
 
 #### 9.2.5.2 집합 함수와 함께 사용된 DISTINCT
@@ -275,13 +274,9 @@ SHOW SESSION STATUS LIKE 'Created_tmp%';
 ### 9.3.1 옵티마이저 스위치 옵션
 
 옵티마이저 스위치 옵션은 글로벌과 세션별로 설정할 수 있는 시스템 변수이다.
-"SET_VAR" 옵티마이저 힌트를 이용해 현재 쿼리에만 설정할 수 있다.
 
 ```SQL
-SET GLOBAL optimizer_switch='index_merge=on,index_merge_union=on,...';
-SET SESSION optimizer_switch='index_merge=on,index_merge_union=on,...';
-
-SELECT /** SET_VAR(optimizer_switch='condition_fanout_filter=off') */ ... FROM ...
+SET [GLOBAL|SESSION] optimizer_switch='index_merge=on,index_merge_union=on,...';
 ```
 
 #### 9.3.1.1 Multi-Range Read(mrr)
@@ -489,7 +484,7 @@ FROM 절에 사용된 서브쿼리를 외부 쿼리와 병합할 때 임시 테�
 프로브 단계는 나머지 테이블의 레코드를 읽어 해시 테이블의 일치하는 레코드를 찾는 과정을 의미한다.
 
 ```SQL
-EXPLAIN FORMAT=TREE SELECT * FROM dept_emp de, employees e WHERE de.from_date = '1995-01-01' AND e.emp_no<109004\G
+EXPLAIN FORMAT=TREE SELECT * FROM dept_emp de, employees e WHERE de.from_date = '1995-01-01' AND e.emp_no < 109004
 ```
 
 ```plaintext
@@ -514,6 +509,82 @@ EXPLAIN SELECT * FROM employees WHERE hire_date BETWEEN '1985-01-01' AND '1985-0
 
 #### 9.3.2.1 Exhaustive 검색 알고리즘
 
+FROM 절에 명시된 모든 테이블의 조합에 대해 실행 계획의 비용을 계산해서 최적의 조합 1개를 찾는 방법이다.
+
 #### 9.3.2.2 Greedy 검색 알고리즘
 
+- optimizer_search_depth  
+옵티마이저가 최적의 실행 계획을 찾기 위해 테이블 조합을 탐색할 때, 탐색하는 테이블 경로의 최대 깊이를 제한하는 값이다.
+- optimizer_prune_level  
+옵티마이저가 실행 경로 탐색 중 비용이 높은 경로를 배제하기 위해 휴리스틱 알고리즘을 적용할지 여부를 결정하는 플래그 변수이다.
+
 ## 9.4 쿼리 힌트
+
+### 9.4.1 인덱스 힌트
+
+#### 9.4.1.1 JOIN 힌트
+
+JOIN 힌트는 SELECT 키워드 바로 뒤에 명시되어야한다.
+
+- STRAIGHT_JOIN(JOIN_FIXED_ORDER)  
+옵티마이저가 FROM 절에 명시된 테이블의 순서대로 조인을 실행하게 하는 힌트
+- JOIN_ORDER  
+힌트에 명시된 테이블의 순서대로 조인을 실행하게 하는 히트
+- JOIN_PREFIX  
+드리이빙 테이블만 강제하는 힌트  
+- JOIN_SUFFIX  
+조인에서 드리븐 테이블만 강제하는 힌트
+
+#### 9.4.1.2 INDEX 힌트
+
+사용하려는 인덱스를 가지는 테이블 뒤에 힌트를 명시해야한다.
+
+- USE INDEX
+- FORCE INDEX
+- IGNORE INDEX
+- FOR JOIN
+- FOR ORDER BY
+- FOR GROUP BY
+
+#### 9.4.1.3 SQL_CALC_FOUND_ROWS 힌트
+
+SQL_CALC_FOUND_ROWS 힌트가 사용된 쿼리가 실행된 경우에는 FOUND_ROW()라는 함수를 이용해 LIMIT을 제외한 조건을 만족하는 레코드가 몇 건이었는지 알 수 있다.
+
+### 9.4.2 옵티마이저 힌트
+
+```SQL
+SELECT /*+ JOIN_ORDER(e, s@suq1) */ count(*)
+FROM employees e 
+WHERE e.first_name = 'Matt' AND e.emp_no in (
+  SELECT /*+ QB_NQME(subq1) */ s.emp_no FROM salaries s WHERE s.salary BETWEEN 50000 AND 50500
+);
+
+SELECT /*+ MAX_EXECUTION_TIME(100) */ * FROM employees ORDER BY last_name LIMIT 1;
+
+SELECT /*+ SET_VAR(optimizer_switch='index_merge_intersection=off') */ *
+FROM employees WHERE first_name = 'Georgi' AND emp_no BETWEEN 10000 AND 20000;
+
+SELECT * FROM departments d WHERE d.dept_no IN (
+  SELECT /*+ SEMIJOIN(MATERIALIZATION) */ de.dept_no FROM dept_emp de
+);
+
+SELECT /*+ BNL(e, de) */ * FROM employees e INNER JOIN dept_emp ON de.emp_no = e.emp_no;
+
+SELECT /*+ JOIN_FIXED_ORDER() */ * FROM employees 
+INNER JOIN dept_emp de ON de.emp_no = e.emp_no 
+INNER JOIN departments d ON d.dept = de.dept_no;
+
+SELECT /*+ MERGE(sub) */ * FROM 
+(SELECT * from employees WHERE first_name = 'Matt') sub LIMIT 10;
+
+SELECT /*+ NO_INDEX_MERGE(employees PRIMARY) */ * FROM employees WHERE first_name = 'Georgi' AND emp_no BETWEEN 10000 AND 20000;
+
+SELECT /*+ NO_ICP(employees ix_lastname_firstname) */ *
+FROM employees WHERE last_name = 'Acton' AND first_name LIKE '%sal';
+
+SELECT /*+ NO_SKIP(employees ix_gender_birthdate) */ * gender, birth_date 
+FROM employees WHERE birth_date >= '1965-02-01';
+
+SELECT /*+ INDEX(employees ix_fristname) */
+FROM employees WHERE first_name = 'Matt';
+```
