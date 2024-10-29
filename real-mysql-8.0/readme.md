@@ -15,3 +15,5 @@
 ## [8. 인덱스](./chapter08/readme.md)
 
 ## [9. 옵티마이저와 힌트](./chapter09/readme.md)
+
+## [10. 실행 계획](./chapter10/readme.md)
