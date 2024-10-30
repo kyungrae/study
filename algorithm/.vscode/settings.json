@@ -10,6 +10,12 @@
         "tuple": "cpp",
         "variant": "cpp",
         "array": "cpp",
-        "execution": "cpp"
+        "execution": "cpp",
+        "set": "cpp",
+        "deque": "cpp",
+        "unordered_map": "cpp",
+        "functional": "cpp",
+        "__locale": "cpp",
+        "queue": "cpp"
     }
 }

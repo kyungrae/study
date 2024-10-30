@@ -12,6 +12,21 @@ const int dy[] = {1, 0, -1, 0};
 const int dx[] = {0 ,1, 0, -1};
 ```
 
+## 실수 데이터 다루기
+
+일반적으로 컴퓨터에서 실수를 표현하기 위해 부동 소수점(floatin-point) 표기법을 사용한다.
+부동 소수점은 실수의 근삿값을 표현하기 때문에 실수를 다룰 때는 오차에 대해 유의해야 한다.
+
+```C++
+bool doubleEqual(double a, double b) {
+  double diff = fabs(a - b);
+  // 절대 오차가 허용 범위 안일 경우 무조건 true를 반환한다.
+  if (diff < 1e-10) return true;
+  // 상대 오차를 사용한다.
+  return diff <= 1e-8 * max(fabs(a), fabs(b));
+}
+```
+
 ## 알고리즘 분석
 
 ### 시간 복잡도
@@ -33,6 +48,26 @@ const int dx[] = {0 ,1, 0, -1};
 1. 반복문 진입시에 불변식이 성립함을 보인다.
 2. 반복문 내용이 불변식을 깨드리지 않음을 보인다.
 3. 반복문 종료시에 불변식이 성립하면 정답을 구했음을 보인다.
+
+```C++
+// 필수 조건: A는 오름 차순으로 정렬되어 있다.
+// 결과: A[i - 1] < target <= A[i]인 i를 반환한다.
+// 가정: A[-1] = -∞, A[A.size()] = ∞
+int binarySearch(const vector<int> &A, int target) {
+  int lo = -1, hi = A.size();
+  // 불변식 1: lo < hi
+  // 불변식 2: A[lo] < target <= A[hi]
+  while (lo + 1 < hi){
+    int mid = (lo + hi) / 2;
+    if (A[mid] < target)
+      lo = mid;
+    else
+      hi = hi;
+  }
+
+  return hi;
+}
+```
 
 ### 귀류법
 
@@ -68,7 +103,7 @@ const int dx[] = {0 ,1, 0, -1};
 
 함수의 결과를 저장하는 장소를 마련해 두고, 한 번 계산한 값을 저장해 뒀다 재활용하는 최적화 기법을 메모이제이션이라고 한다.
 
-### Referential transparency
+### Referential transparency(참조 투명성)
 
 함수의 반환 값이 그 입력 값만으로 결정되는지의 여부를 참조적 투명성이라고 부른다.
 메모이제이션은 참조적 투명 함수의 경우에만 적용할 수 있다.
@@ -77,3 +112,20 @@ const int dx[] = {0 ,1, 0, -1};
 
 최적 부분 구조는 어떤 문제와 분할 방식에 성립하는 조건이다.
 각 부분 문제의 최적해만 있으면 전체 문제의 최적해를 쉽게 얻어낼 수 있을 경우 이 조건이 성립한다.
+
+### Markov chain(마르코프 연쇄)
+
+- 유한한 상태 공간
+- 매 시간마다 상태가 변경
+- 어떤 상태 a에서 다른 상태 b로 옮겨갈 확률은 현재 상태 a에만 좌우된다.
+
+### Bayes' theorem(배이지 정리)
+
+사전 확률과 사후 확률 사이의 관계를 나타내는 정리이다.
+
+$$
+P(A|B) = \frac{P(B|A) \times P(A)}{P(B)}
+$$
+
+- $P(A)$: 사전 확률(the independent probability of A)
+- $P(A|B)$: 사후 확률(probability of A given B is true)
