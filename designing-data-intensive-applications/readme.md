@@ -66,8 +66,55 @@ and they should all be able to work on in productively
   - Can easily represent unstructured data formats like JSON.
   - Good read performance, as a single query can fetch most of the required data due to data locality.
   - Flexible schema, making it easier to manage items with varying structures within a collection.
-- DisadvaWeaker support for joins, making it difficult to represent relationships like many-to-one and many-to-many.ntages
+- Disadvantages
   - Weaker support for joins, making it difficult to represent relationships like many-to-one and many-to-many.
-  - The weak support for joins can lead to issues of data duplication and inconsistency when normalization is not applied.
+  - Denormalization can lead to issues of data duplication and inconsistency.
 
 ### Query Languages for Data
+
+A declarative query language is attractive because it is typically more concise and easier to work with than an imperative API.
+But more importantly, it is also hides implementation details of the database engine.
+Declarative language often lend themselves to parallel execution.
+
+#### MapReduce
+
+MapReduce is a fairly low-level programming model for distributed execution on a cluster of machines.
+
+### Graph-Like Data Model
+
+As the connection within your data become more complex, it becomes more natural to start modeling your data as a graph.
+
+#### Property Graphs
+
+1. Any vertex can have an edge connecting it with any other vertex. There is no schema that restricts which kinds of things can or cannot be associated.
+2. Given any vertex, you can efficiently find both its incoming and its outgoing edges, and thus traverse the graph
+3. By using different labels for different kinds of relationships, you can store several different kinds of information in a single graph, while still maintaining a clean data model.
+
+#### The Cypher Query Language
+
+Cypher is a declarative query language for property graph.
+
+```CYPHER
+CREATE
+  (NAmerica:Location {name:'North America', type:'continent'}),
+  (USA:Location {name:'United States', type:'country' }),
+  (Idaho:Location {name:'Idaho', type:'state' }),
+  (Lucy:Person {name:'Lucy' }),
+  (Idaho) -[:WITHIN]-> (USA) -[:WITHIN]-> (NAmerica),
+  (Lucy) -[:BORN_IN]-> (Idaho)
+```
+
+```CYPHER
+MATCH
+  (person) -[:BORN_IN]-> () -[:WITHIN*0..]-> (us:Location {name:'United States'}),
+  (person) -[:LIVES_IN]-> () -[:WITHIN*0..]-> (us:Location {name:'Europe'})
+RETURN person.name
+```
+
+#### Graph Query in SQL
+
+This idea of variable-length traversal paths in a query can be expressed using something called recursive common table expressions (the WITH RECURSIVE syntax).
+
+#### Triple-Stores and SPARQL
+
+ALL information is stored in the form of very simple three-part statements: (subject, predicate, object)
