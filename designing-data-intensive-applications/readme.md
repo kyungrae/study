@@ -118,3 +118,33 @@ This idea of variable-length traversal paths in a query can be expressed using s
 #### Triple-Stores and SPARQL
 
 ALL information is stored in the form of very simple three-part statements: (subject, predicate, object)
+
+## 3. Storage and Retrieval
+
+### Data Structures That Power your Database
+
+#### SStable and LSM tree
+
+- SSTable require that the sequence of key-value pairs is sorted by key and that each key only appears once within each merged segment file(the compaction process already ensure that).
+- In-memory index can be sparse because of sorting.
+- It use red-black tree or AVL tree(memtable) to maintain a sorted structure on disk.
+- The LSM-tree algrorithm can be slow when looking up keys that do not exist in the database. A Bloom filter is a memory-efficient data structure for approximating the contents of a set. It can tell you if a key does not appear in the database, and thus saves many unnecessary disk reads for nonexistent keys.
+
+#### B-Tree
+
+B-trees break the database down into fixed-size blocks or sequentially.
+One page is designed as the root of the B-tree.
+Each child is responsible for a continuous range of keys, and the keys between the refernces indicate where the boundaries between thoes ranges lie.
+Eventaully we get down to a page containing individual keys(a leaf page), which either contains the value for each key inline or contains references to the pages where the value can be found.
+
+### Transaction Processing or Analytics?
+
+| Property | Transaction processing systems (OLTP) | Analytics systems (OLAP) |
+|---|---|---|
+| Main read pattern | Small number of records per query, feched by key | Aggregate over large number of records |
+| Main write pattern | Random-access,low-latency writes from user input | Bulk import(ETL) or event stream |
+| Primarily used by | End user/customer, via web application | Internal analyst, for decision support |
+| What data represents | Latest state of data(current point in time) | History of events that happened over time |
+| Dataset size | Gigabytes to terabytes | Terabytes to petabytes |
+
+### Column-Oriented Storage
