@@ -125,6 +125,8 @@ ALL information is stored in the form of very simple three-part statements: (sub
 
 #### SStable and LSM tree
 
+Their key idea is that they systematically turn random-access writes into sequential writes on disk, which enables higher write throughput due to the performance characteristics of hard drives and SSDs.
+
 - SSTable require that the sequence of key-value pairs is sorted by key and that each key only appears once within each merged segment file(the compaction process already ensure that).
 - In-memory index can be sparse because of sorting.
 - It use red-black tree or AVL tree(memtable) to maintain a sorted structure on disk.
@@ -147,4 +149,21 @@ Eventaully we get down to a page containing individual keys(a leaf page), which 
 | What data represents | Latest state of data(current point in time) | History of events that happened over time |
 | Dataset size | Gigabytes to terabytes | Terabytes to petabytes |
 
+This separate database was called a data warehouse.
+
 ### Column-Oriented Storage
+
+The idea behind column-oriented storage is simple: don't store all the values from one row together, but store all the values from each column together instead.
+If each column is stored in a separate file, a query only needs to read and parse those columns that are used in that query, which can save a lot of work.
+
+#### Column-oriented storage and column families
+
+Cassandra and HBase have a concept of column families, which they inherited from Bigtable.
+However, it is very misleading to call them column-oriented: within each column family, they store all columns from a row together, along with a row ky, and they do not use column compression.
+Thus, the Bigtable model is still mostly row-oriented.
+
+#### Aggregation: Data Cubes and Materalized Views
+
+One way of creating such a cache is a materalized view.
+In a relational data model, it is often defined like a standard (virtual) view: a table-like object whose content are the results of some query.
+The difference is that materalized view is an actual copy of the query results, written to disk, whereas a virtual view is just a shortcut for writing queries.
