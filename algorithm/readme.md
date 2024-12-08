@@ -62,7 +62,7 @@ int binarySearch(const vector<int> &A, int target) {
     if (A[mid] < target)
       lo = mid;
     else
-      hi = hi;
+      hi = mid;
   }
 
   return hi;
