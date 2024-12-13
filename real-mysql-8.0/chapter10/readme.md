@@ -239,7 +239,7 @@ DEPENDENT UNION 또한 UNION select_type과 같이 UNION이나 UNION ALL로 집�
 #### 10.3.2.5 UNION RESULT
 
 UNION RESULT는 UNION 결과를 담아두는 임시 테이블을 의미한다.
-UNION RESULT는 실제 쿼리에서 단위 쿼리가 아니기 떄문에 별도의 id 값은 부여되지 않는다.
+UNION RESULT는 실제 쿼리에서 단위 쿼리가 아니기 때문에 별도의 id 값은 부여되지 않는다.
 
 | id | select_type | table | type | key | rows | Extra |
 |---|---|---|---|---|---|---|
@@ -426,7 +426,7 @@ filtered 칼럼의 값은 필터링되어 버려지는 레코드의 비율이 �
 
 #### 10.3.12.26 Using join buffer
 
-드리븐 테이블에 검색을 위한 적적한 인덱스가 없다면 블록 네스티드 루프 조인이나 해시 조인을 사용한다.
+드리븐 테이블에 검색을 위한 적절한 인덱스가 없다면 블록 네스티드 루프 조인이나 해시 조인을 사용한다.
 
 #### 10.3.12.29 Using temporary
 

@@ -10,12 +10,11 @@
 - Unit test
 - Real MySQL 8.0 2
 - 가상 면접 사례로 배우는 대규모 시스템 설계 1 & 2
+- 명령어(xxd, lsof, nc, tcpdump, arp, nslookup, sed, curl, head, tail, ping)
 
 ## DOING
 
 - Algorithm
-- Real MySQL 2.0 1
 - 데이터 중심 에플리케이션 설계
-- Reactor
 
 ## DONE

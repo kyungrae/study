@@ -380,7 +380,7 @@ EXPLAIN SELECT * FROM employees WHERE first_name='Matt' OR hire_date BETWEEN '19
 
 #### 9.3.1.10 테이블 풀-아웃(Table Pull-out)
 
-세미 조인의 서브쿼리에 사용된 테이블을 끄집어낸 후에 inner join 쿼리로 재작성하는 형태의 최적화다.
+세미 조인의 서브쿼리에 사용된 테이블을 끄집어낸 후에 join 쿼리로 재작성하는 형태의 최적화다.
 아래 쿼리 실행 계획에서 id 칼럼 값이 모두 1이라는 것은 조인으로 처리됐음을 의미한다.
 
 ```SQL
@@ -411,7 +411,7 @@ EXPLAIN SELECT * FROM employees e WHERE e.first_name = 'Matt' AND e.emp_no IN (
 
 #### 9.3.1.12 루스 스캔(loosescan)
 
-서브쿼리가 드라이빙 테이블이 되고 루스 인덱스 스캔을 사용할 수 있을 때 사용할 수 있는 최적화이다.
+서브쿼리의 테이블을 스캔할 때 루스 인덱스 스캔을 이용해 값을 조회한다.
 
 ```SQL
 EXPLAIN SELECT * FROM departments d WHERE d.dept_no IN (SELECT de.dept_no FROM dept_emp de);
@@ -461,6 +461,12 @@ GROUP BY e.emp_no;
 #### 9.3.1.15 컨디션 팬아웃(condition_fanout_filter)
 
 옵티마이저가 조건에 만족하는 레코드 비율울 예측할 수 있게 실행 계획의 filtered 칼럼 값을 예측한다.
+옵티마이저가 filtered 값을 예측하기 위해 다음 순서대로 사용 가능한 방식을 선택한다.
+
+1. 레인지 옵티마이저
+2. 히스토그램을 이용한 예측
+3. 인덱스 통계를 이용한 예측
+4. 추측에 기반한 예측
 
 #### 9.3.1.16 파생 테이블 머지(derived_merge)
 
