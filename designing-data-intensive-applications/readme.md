@@ -167,3 +167,42 @@ Thus, the Bigtable model is still mostly row-oriented.
 One way of creating such a cache is a materalized view.
 In a relational data model, it is often defined like a standard (virtual) view: a table-like object whose content are the results of some query.
 The difference is that materalized view is an actual copy of the query results, written to disk, whereas a virtual view is just a shortcut for writing queries.
+
+## 4. Encoding and Evolution
+
+- Backward compatibility  
+  Newer code can read data that was written by older code.  
+- Forward compatibility  
+  Older code can read data that was written by newer code.
+
+### Formats for Encoding Data
+
+Program usually work with data in (at least) two different representations:
+
+1. In memory, data is kept in objects, structs, list, array, hash table, trees, and so on.
+These data structures are optimized for efficient access and manipulation by the CPU (typically using pointers).
+2. When you want to write data to file or sent it over the network, you have to encode it as some kind of self-contained sequence of bytes(for example, a JSON document).
+Since a pointer wouldn't make sense to any other process, this sequence-of-bytes representation looks quite different from the data structures that are normally used in memory.
+
+The translation from the in-memory representation to a byte sequence is called encoding, and the reverse is called decoding.
+
+#### Language-Specific Formats
+
+Programming language-specific encodings(Serializable, Marshar, pickle) are restricted to a single programming language and often fail to provide forward and backward compatibility.
+
+#### JSON, XML, and Binary Variants
+
+Textual formats like JSON, XML, and CSV are widespread, and their compatibility depends on how you use them.
+These formats are somewhat vague about datatypes, so you have to be careful with things like number and binary strings.
+
+#### Thrift, Protocol Buffers and Avro
+
+Binary schema-driven format like Thrift, Protocol Buffers, and Avro allow compact, efficient encoding with clearly defined forward and backwrad compatibility semantics.
+The schemas can be useful for documentation and code generation in satically typed languages.
+However, they have downside that needs to be decoded before its humna-readable.
+
+### Modes of Dataflow
+
+- Dataflow Through Datbases
+- Dataflow Through Services: REST and RPC
+- Message-Passing Dataflow
