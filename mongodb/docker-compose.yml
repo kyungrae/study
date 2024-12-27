@@ -1,0 +1,17 @@
+version: "3.8"
+
+volumes:
+  mongodata:
+    driver: local
+
+services:
+  mongodb:
+    container_name: test-mongo
+    image: mongo:8.0.4
+    ports:
+      - 27017:27017
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=user
+      - MONGO_INITDB_ROOT_PASSWORD=pass
+    volumes:
+      - mongodata:/data/db
