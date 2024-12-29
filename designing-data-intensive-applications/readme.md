@@ -1,5 +1,7 @@
 # Designing Data Intensive Applications
 
-## [Part 1. Foundations of Data Systems](./part1.md)
+## [Part Ⅰ. Foundations of Data Systems](./part1.md)
 
-## [Part 2. Distributed Data](./part2.md)
+## [Part Ⅱ. Distributed Data](./part2.md)
+
+## [Part Ⅲ. Dereived Data](./part3.md)
