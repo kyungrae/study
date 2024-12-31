@@ -22,7 +22,7 @@ Replication means keeping a copy of the same data on multiple machines that are 
 
 ### Leaders and Followers
 
-The most common solution for replication is called leader-based replication(also known as active/passive or master-slave replication).
+The most common solution for replication is called ***leader-based*** replication(also known as active/passive or master-slave replication).
 
 ```mermaid
 flowchart LR
@@ -50,7 +50,7 @@ Often, leader-based replication is configured to be completely asynchronous.
 1. Take a consistent snapshot of the leader's database at some point in time.
 2. Copy the snapshot to the new follower node.
 3. The follower connects to the leader and requests all the data changes that have happened since the snapshot was taken.
-4. When the follower has processed the backlog of data changes since the snapshot, we say it has ***caught up***.
+4. When the follower has processed the backlog of data changes since the snapshot, we say it has *caught up*.
 
 #### Handing Node Outages
 
@@ -71,21 +71,21 @@ The system needs to ensure that the old leader becomes a follower and recognizes
 Failover is fraught with things that can go wrong:
 
 - If asynchronous replication is used, the new leader may not have received all the writes from the old leader before it failed.
-If the former leader re the cluster after a new leader has been chosen, what should happen to those writes?
+If the former leader rejoin the cluster after a new leader has been chosen, what should happen to those writes?
 The most common solution is for the old leader's unreplicated writes to simply be discarded, which may violate client's durability expectations.
 - Discarding writes is especially dangerous if other storage systems outside of the database need to be coordinated with the database contents.
 For example, an out-of-date MySQL follower was promoted to leader.
 The database used an autoincrementing counter to assign primary keys to new rows, it reused some primary keys that were previously assigned by the old leader.
 These primary keys were also used in a Redis store, so the reuse of primary keys resulted in inconsistency between MySQL and Redis.
 - It could happen that two nodes both believe that they are the leader.
-This situation is called *split brain*.
+This situation is called split brain.
 - What is the right timeout before the leader is declared dead?
 
 #### Implementation of Replication Logs
 
 ##### Statement-based replication
 
-The leader logs every write request (statement) that it executes and sends that statement log to its followers.
+The leader logs every write request(statement) that it executes and sends that statement log to its followers.
 There are various ways in which this approach to replication can break down.
 
 - Any statement that calls a nondeterministic function is likely to generate a different value on each replica.
@@ -120,7 +120,7 @@ The delay between a rite happening on the leader and being reflected on a follow
 
 #### Reading Your Own Writes
 
-***Read-after-write consistency***, also known as read-your-writes consistency. is a guarantee that if the use reload the page, they will always see any updates they submitted themselves.
+***Read-after-write consistency*** is a guarantee that if the use reload the page, they will always see any updates they submitted themselves.
 To implement read-after-write consistency, You have some way of knowing whether something might have been modified, without actually querying it: authorization, last update time or timestamp.
 Another complication arises when the same user is accessing your service from multiple devices.
 In this case you may want to provide ***cross-device read-after consistency***.
@@ -134,7 +134,7 @@ sequenceDiagram
   participant Leader
   participant Follower
 
-  User1->>+Leader: insert into comments values
+  User1->>+Leader: insert into comments
   note over Follower: offline
   Leader-xFollower: replication stream
   note over Follower: online
@@ -148,7 +148,7 @@ sequenceDiagram
 
 #### Monotonic Reads
 
-You may see an old value; ***monotonic reads*** only mean that if one user makes several reads in sequence, they will not see time go backward.
+You may see an old value; ***monotonic reads*** only means that if one user makes several reads in sequence, they will not see time go backward.
 It's a lesser guarantee than strong consistency, but a stronger guarantee than eventual consistency.
 
 ```mermaid
@@ -184,7 +184,7 @@ One solution is to make sure that any writes that are causally related to each o
 
 #### Solution for Replication Lag
 
-It would be better if application developer didn't have to worry about subtle replication issues and could just trust their databases to "do the right thing."
+It would be better if application developers didn't have to worry about subtle replication issues and could just trust their databases to "do the right thing."
 This is why ***transaction*** exist: they are a way for a database to provide stronger guarantees so that the application can be simpler.
 
 ### Multi-Leader Replication
@@ -193,27 +193,22 @@ A natural extension of the leader-based replication model is to allow more than 
 Replication still happens in the same way: each node that processes a write must forward that data change to all the other nodes.
 We call this a ***multi-leader*** configuration(also known as master-master or active/active replication).
 
-- Performance
-- Tolerance of datacenter outages
-- Tolerance of network problems
-
 #### Handling Write Conflicts
 
 The biggest problem with multi-leader replication is that write conflicts can occur, which means that conflict resolution is required.
 
 - Synchronous versus asynchronous conflict detection  
   By making the conflict detection synchronous, you would lose the main advantage of multi-leader replication: allowing each replica to accept writes independently.
-  If you want synchronous conflict detection, you might as well just use single-leader replication.
 - Conflict avoidance  
   The simplest strategy for dealing with conflicts is to avoid them.
   Since many implementations of multi-leader replication handle conflicts quite poorly, avoiding conflict is a frequently recommended approach.
 - Converging toward a consistent state  
-  If each replicas simply applied writes in the order that it saw the writes, the database would end up in an inconsistent state.
-  If a timestamp is used, this technique is known as *last write wins*(LWW).
+  If each replica simply applied writes in the order that it saw the writes, the database would end up in an inconsistent state.
+  If a timestamp is used, this technique is known as *last write wins*.
 - Custom conflict resolution
   - On write  
-    As soon as the database system detects a conflict in the log of replicated changes, it call the conflict handler.
-    It runs in a background process and it must execute quickly.
+    As soon as the database system detects a conflict in the log of replicated changes, it calls the conflict handler.
+    It runs in a background process.
   - On read  
     When a conflict is detected, all the conflicting write are stored.
     The next time the data is read, these versions of the data are returned to the application.
@@ -224,10 +219,10 @@ The biggest problem with multi-leader replication is that write conflicts can oc
 - Star topology
 - All-to-All topology
 
-A problem with circular and star topologies is that if just one node fails, it can interrupt the flow of replication message between other nodes, causing them to be unable to communicate until the node is fixed.
+A problem with circular and star topologies is that if just one node fails, it can interrupt the flow of replication messages between other nodes, causing them to be unable to communicate until the node is fixed.
 All-to-all topologies can have issues.
-Some network links may be faster than others, with the result that some replication message may "overtake" others.
-This is problem of causality.
+Some network links may be faster than others, with the result that some replication messages may "overtake" others.
+This is a problem of causality.
 
 ### Leaderless Replication
 
@@ -270,22 +265,23 @@ sequenceDiagram
 ##### Read repair and anti-entropy
 
 - Read repair  
-  The client detect a stale value amd writes the newer values back to that replica
+  The client detect a stale value and writes the newer values back to that replica
   This approach works well for values that are frequently read.
 - Anti-entropy process  
   Some datastores have a background process that constantly looks for differences in the data between replicas and copies any missing data from one replica to another.  
 
 ##### Quorums for reading and writing
 
-If there are n replicas, every write must be confirmed by w nodes to be considered, successful, and we must query at least r nodes for each read.
-As long as w + r > n, we expect to get an up-to-date value hen reading.
+If there are n replicas, every write must be confirmed by w nodes to be considered successful, and we must query at least r nodes for each read.
+As long as w + r > n, we expect to get an up-to-date value when reading.
 Reads and writes that obey these r and w values are called *quorum* reads and writes.
 
 #### Limitation of Quorum Consistency
 
 - If sloppy quorum is used, the w writes may end up on different nodes than the r reads.
-- If a write happens concurrently with a read, it's undetermined whether the read return the old or the new value.
-- If a write succeeded on some replicas but failed on others, and overall succeeded on fewer than w replicas, it is not roll backed on the replicas where is succeeded.
+- If two writes occur concurrently, it is not clear which one happened first.
+- If a write happens concurrently with a read, it's undetermined whether the read returnㄴ the old or the new value.
+- If a write succeeded on some replicas but failed on others, and overall succeeded on fewer than w replicas, it is not roll backed on the replicas where it succeeded.
 - If a node carrying a new value fails, and its data is restored from a replica carrying an old value.
 
 #### Detecting Concurrent Writes
@@ -300,8 +296,8 @@ sequenceDiagram
   participant Replica3
   actor User2
 
-  User1->>Replica1: set X=A
   User2->>Replica3: set X=B
+  User1->>Replica1: set X=A
   User1->>Replica2: set X=A
   User2->>Replica2: set X=B
   User1->>Replica3: set X=A
@@ -321,17 +317,21 @@ sequenceDiagram
 
 We can attach a timestamp to each write, pick the biggest timestamp as the most "recent," and discard any writes with an earlier timestamp.
 This conflict resolution algorithm, called last write wins (LWW).
+LWW achieves the goal of eventual convergence, but at the cost of durability.
 
 ##### The "happens-before" relationship and concurrency
 
 Whether one operation happens before another operation is the key to defining what concurrency means.
 In fact, we can simply say that two operations are concurrent if neither happens before the other.
 
+What we need is an algorithm to tell us whether two operations are concurrent or not.
+If one operation happened before another, the later operation should overwrite the earlier operation, but if the operations are concurrent, we have a conflict that needs to be resolved.
+
 ##### Capturing the happens-before relationships
 
 Server can determine whether two operations are concurrent by looking at the version numbers.
-When a write includes the version numbers from a prior read, that tells us which previous state the write is base on.
-If you make a write without including a version number, it is concurrent with all other writes, so it will not overwriting anything-it will just be returned as one of the values on subsequent reads.
+When a write includes the version numbers from a prior read, that tells us which previous state the write is based on.
+If you make a write without including a version number, it is concurrent with all other writes, so it will not overwrite anything-it will just be returned as one of the values on subsequent reads.
 
 ##### Version vectors
 
