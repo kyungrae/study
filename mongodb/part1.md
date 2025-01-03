@@ -3,6 +3,9 @@
 ## 1. Introduction
 
 ```mermaid
+---
+title: Sharding across multiple servers
+---
 flowchart
   application1[Application/Driver] <--> mongos["mongos(router)"]
   application2[Application/Driver] <--> mongos
@@ -22,7 +25,7 @@ flowchart
 
 ### Document
 
-A document is an ordered set of key with associated values.
+A document is an ordered set of keys with associated values.
 
 ### Collection
 
@@ -58,9 +61,9 @@ By concatenating a database name with a collection in that database you can get 
 Every document stored in MongoDB must have an "_id" key.
 In a single collection, every document must have a unique value for "_id".
 
-The ObjectId class is designed to be lightweight, while still being easy to generate globally unique way across different machines.
+The ObjectId class is designed to be lightweight, while still being easy to generate globally unique ways across different machines.
 It is difficult and time-consuming to synchronize autoincrementing primary keys across multiple servers.
-ObjectIds use 12 byte of storage.
+ObjectIds use 12 bytes of storage.
 
 - A 4-byte timestamp, representing the ObjectId's creation, measured in seconds.
 - A 5-byte random value generated once per process.
@@ -97,11 +100,11 @@ db.movies.drop()
 ### Updating Documents
 
 Updating a document is atomic.
-Conflicting update can safely be sent in rapid-fire succession without any documents being corrupted: the last update will "win".
+Conflicting updates can safely be sent in rapid-fire succession without any documents being corrupted: the last update will "win".
 
 #### Document Replacement
 
-replaceOne takes a filter as the first parameter, but as the second parameter expect a document with which it will replace the document matching the filter.
+replaceOne takes a filter as the first parameter, but as the second parameter expects a document with which it will replace the document matching the filter.
 
 ```js
 var joe = {name:"joe",friends:32,enemies:2}
@@ -120,8 +123,8 @@ Update operators are special keys that can be used to specify complex update ope
 ```js
 // $inc
 db.analytics.updateOne(
-  {_id: ObjectId("6776b159a04068114efc0422")},
-  {$inc:{pageviews:1}}
+  {_id: ObjectId("6776b159a04068114efc0422")},  // condition
+  {$inc:{pageviews:1}}                          // operator
 )
 
 // $set $unset
@@ -173,7 +176,6 @@ It can eliminate the race condition and cut down the amount of code by just send
 
 ```js
 db.analytics.updateOne({url:"/example"}, {$inc:{pageviews:1}}, {upsert:true})
-
 db.users.updateOne({name:"joe"}, {$setOnInsert:{createdAt:new Date()}}, {upsert:true})
 ```
 
@@ -190,3 +192,135 @@ db.processes.findOneAndUpdate(
 ```
 
 ## 4. Querying
+
+### Introduction to find
+
+```js
+db.users.find(
+  {name:"joe",age:27},    // conditions
+  {name:1,email:1,_id:0}  // keys
+)
+```
+
+### Query Criteria
+
+```js
+// $lt $lte $gt $gte
+db.users.find({age: {$gte:18,$lte:30}})
+
+// $in
+db.users.find({user_id: {$in: [12345,"joe"]}})
+
+// $or
+db.raffle.find({$or: [{ticket_no:725}, {winner:true}]})
+
+// $not
+db.users.find({id_num: {$not: {$mod: [5,1]}}})
+```
+
+### Type-Specific Queries
+
+#### null
+
+```js
+db.c.find({y: null})                      // {y:null},{x:1}
+db.c.find({y: {$eq:null,$exists:true}})   // {y:null}
+```
+
+#### Regular Expression
+
+```js
+db.users.find({name: {$regex:/joe/i}})
+```
+
+#### Querying Arrays
+
+```js
+// $all: match more than one element and order doesn't matter
+db.food.find({fruit: {$all: ["apple","banana"]}}) 
+
+// $size
+db.food.find({fruit: {$size:3}})
+
+// $slice: return a subset of elements for an array key.
+db.blog.posts.findOne(criteria, {comments:{$slice:-10}})
+db.blog.posts.findOne(criteria, {comments:{$slice:[23,10]}})
+
+// $elemMatch: compare both clauses with a single array element
+db.test.find({x: {$elemMatch: {$gt: 10, $lt:20}}})
+```
+
+#### Querying Embedded Documents
+
+```js
+// Can query for embedded keys using dot notation
+db.people.find({"name.first":"Joe", "name.last": "Schmoe"})
+db.blog.find({comments: {$elemMatch:{author:"joe",score:{$gte:5}}}})
+```
+
+### where Queries
+
+There are $where clauses, which allow you to execute arbitrary JavaScript as part of your query.
+For security, use of $where should be highly restricted or eliminated.
+
+```js
+db.foo.find({$where: function() {
+  for(var current in this)
+    for(var other in this)
+      if(current != other && this[current] == this[other])
+        return true
+  return false
+}})
+```
+
+Each document has to be converted from BSON to a JavaScript object and then run through the $where expression.
+Indexes cannot be used to satisfy a $where either.
+Hence, you should use $where only when there is no other way of doing the query.
+
+### Cursors
+
+The database return results from **find** using a *cursor*.
+The client-side implementations of cursors generally allow you to control a great deal about the eventual output of a query.
+You can limit the number of results, skip over some number of results, sort results by any combination of keys in any direction.
+
+```js
+var cursor = db.collection.find() // returns a cursor
+while(cursor.hasNext())           // checks that the next result exists
+  object = cursor.next()          // fetches it
+```
+
+```js
+db.hasNext()
+```
+
+At this point, the query will be sent to the server.
+The shell fetches the first 100 results or first 4MB of results at once so that the next calls to next or hasNext will not have to make trips to the server.
+After the client has run through the first set of results, the shell will again contact the database and ask for more results with a getMore request.
+getMore requests basically contain an identifier for the cursor and ask the database if there are any more results, returning the next batch if there are.
+This process continues until the cursor is exhausted and all results have been returned.
+
+#### Limits, Skip, and Sort
+
+- limit: sets an upper limit.
+- skip: skip first n matching documents and return the rest of the matches.
+- sort: takes an object: a set of key value pairs where the keys are key names and the values are the sort directions.
+
+```js
+db.foo.find().sort({x:1}).limit(1).skip(10)
+```
+
+#### Avoiding Large Skips
+
+Skip can be slow, since it has to find and then discard all the skipped results.
+Most databases keep more metadata in the index to help with skips, but MongoDB does not yet support this, so large skips should be avoided.
+
+#### Immortal Cursors
+
+On the server side, a cursor takes up memory and resources.
+There are a couple of conditions that can cause the death of a cursor.
+First, when a cursor finishes iterating through the matching results, it will clean up.
+Another way is that, when a cursor goes out of scope on the client side, the drivers send the database a special message to let it know that it can kill that cursor.
+Finally, even if the user hasn't iterated through all the results and the cursor is still in scope, after 10 minutes of inactivity, a database will automatically die.
+
+Many drivers have implemented a function called immortal which tells the database not to time out the cursor.
+If you turn off a cursor's timeout, you must iterate through all of its results or kill it to make sure it gets closed.
