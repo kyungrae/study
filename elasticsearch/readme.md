@@ -103,6 +103,9 @@ PUT [인덱스 이름]
     "number_of_shards": 1,
     "number_of_replicas": 1,
     "refresh_interval": "1S"
+  },
+  "mappings": {
+    "properties": {},
   }
 }
 ```
@@ -270,5 +273,40 @@ PUT analyzer_test
 ```
 
 ### 3.4 템플릿
+
+템플릿을 사전에 정의해 두면 인덱스 생성 시 사전 정의한 설정대로 인덱스가 생성된다.
+
+```HTTP
+PUT _index_template/my_template
+{
+  "index_patterns": ["pattern_test_index-*"],
+  "priority": 1,
+  "template": {
+    "settings": {
+      "number_of_shards": 2,
+      "number_of_replicas": 2
+    },
+    "mappings": {
+      "properties" : {
+        "myTextField": {
+          "type": "text"
+        }
+      }
+    }
+  }
+}
+```
+
+### 3.5 라우팅
+
+라우팅은 엘라스틱서치가 인덱스를 구성하는 샤드 중 몇 번 샤드를 대상으로 작업을 수행할지 지정하기 위해 사용한다.
+라우팅 값은 문서를 색인할 때 문서마다 하나씩 지정할 수 있다.
+작업 대상 샤드 번호는 지정된 라우팅 값을 해시한 후 주 샤드의 개수로 나머지 연산을 수행한 값이 된다.
+라우팅 값을 지정하지 않고 문서를 색인하는 경우 라우팅 기본값은 _id 값이 된다.
+색인 시 라우팅 값을 지정했다면 조회, 업데이트, 삭제, 검색 등의 작업에서도 똑같이 라우팅을 지정해야 한다.
+
+라우팅 값을 명시하지 않고 검색하면 전체 샤드를 대상으로 검색을 요청하게 된다.
+인덱스 내에서 _id 값의 고유성 검증은 샤드 단위로 보장된다.
+라우팅 값이 다르게 지정되면 한 인덱스 내에서 같은 _id를 가진 문서가 여러 개 생길 수도 있다.
 
 ## 4. 데이터 다루기
