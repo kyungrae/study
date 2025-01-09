@@ -34,7 +34,8 @@ Once you have described the load on your system, you can investigate what happen
 
 Both questions require performance numbers, performance numbers can vary and may be values such as response time, throughput, and more.
 
-We need to think of response time not as a single value, but as a distribution of values.High percentiles of response time(tail latencies) are important because they directly affect the user's experience of the service.
+We need to think of response time not as a single value, but as a distribution of values.
+High percentiles of response time(tail latencies) are important because they directly affect the user's experience of the service.
 
 When generating load artificially in order to test the scalability of a system, the load generating client needs to keep sending requests independently of the response time.
 
@@ -94,7 +95,7 @@ CREATE
   (NAmerica:Location {name:'North America', type:'continent'}),
   (USA:Location {name:'United States', type:'country' }),
   (Idaho:Location {name:'Idaho', type:'state' }),
-  (Lucy:Person {name:'Lucy' }),
+  (Lucy:Person {name:'Lucy'}),
   (Idaho) -[:WITHIN]-> (USA) -[:WITHIN]-> (NAmerica),
   (Lucy) -[:BORN_IN]-> (Idaho)
 ```

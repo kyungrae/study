@@ -32,8 +32,7 @@ flowchart LR
   follower2@{ shape: cyl, label: "Follower replica" }
   user2@{ shape: circle, label: "User2" }
   user1 -- update users set picture_url = 'me-new.jpg' where user_id =1 --> leader
-  leader -- Replication streams --> follower1
-  leader -- Replication streams --> follower2
+  leader -- Replication streams --> follower1 & follower2
   user2 -- select * from users where user_id = 1 --> follower2
 ```
 
@@ -338,6 +337,184 @@ If you make a write without including a version number, it is concurrent with al
 The collection of version numbers from all the replicas is called a version vector
 
 ## 6. Partitioning
+
+Partitions are defined in such a way that each piece of data belongs to exactly one partition.
+The main reason for wanting to partition data is scalability.
+Different partitions can be placed on different nodes in a shared-nothing cluster.
+Thus, a large dataset can be distributed across many disks, and the query load can be distributed across many processors.
+
+### Partitioning and Replication
+
+Partitioning is usually combined with replication so that copies of each partition are stored on multiple nodes.
+
+```mermaid
+---
+title: Combining replication and partitioning
+---
+flowchart
+  subgraph Node 1
+    direction TB
+    Leader11[Partition 1 Leader]~~~Follower21[Partition 2 Follower]~~~Follower31[Partition 3 Follower]
+  end
+  subgraph Node 2
+    direction TB
+    Follower22[Partition 2 Follower]~~~Leader32[Partition 3 Leader]~~~Follower42[Partition 4 Follower]
+  end
+  subgraph Node 3
+    direction TB
+    Follower13[Partition 1 Follower]~~~Leader23[Partition 2 Leader]~~~Follower43[Partition 4 Follower]
+  end
+  subgraph Node 4
+    direction TB
+    Follower14[Partition 1 Follower]~~~Follower34[Partition 3 Follower]~~~Leader44[Partition 4 Leader]
+  end
+```
+
+### Partitioning of Key-Value Data
+
+Our goal with partitioning is to spread the data and the query load evenly across nodes.
+If the partitioning is unfair, so that some partitions have more data or queries than others, we call it skewed.
+A partition with disproportionately high load is called a hot spot.
+
+#### Partitioning by Key Range
+
+One way of partitioning is to assign a continuous range of keys to each partition.
+The ranges of keys are not necessarily evenly spread, because your data may not be evenly distributed.
+
+Within each partition, we can keep keys in sorted order.
+This has the advantage that range scans are easy, and you can treat the keys as a concatenated index in order to fetch several related records in one query.
+
+The downside of key range partitioning is that certain access patterns can lead to hot spots.
+To avoid writing time based key data on the same partition, you could prefix each timestamp with another name so that the partitioning is first by sensor and then by time.
+
+#### Partitioning by Hash of Key
+
+A good hash function takes skewed data and makes it uniformly distributed.
+Once you have a suitable hash function for keys, you can assign each partition for a range of hashes, and every key whose hash falls within a partition's range will be stored in that partition.
+
+Unfortunately by using the hash of the key for partitioning we lose a nice property of key-range partitioning.
+Keys that were nice adjacent are now scattered across all the partitions, so their sort order is lost.
+
+#### Skewed Workloads and Relieving Hot Spots
+
+Hot spots can't avoid them entirely: in the case where all reads and writes are for the same key, you still end up with all requests being routed to the same partition.
+Most data systems are not able to automatically compensate for such a highly skewed workload, so it's the responsibility of the application to reduce the skew.
+For example, if one key is known to be very hot, a simple technique is to add a random number to the beginning or end of the key.
+
+### Partitioning and Secondary Indexes
+
+#### Partitioning Secondary Indexes by Document
+
+A document index is also known as a local index.
+In this approach, Each partition maintains its own secondary indexes, covering only the documents in that partition.
+
+However, Reading from a document-partitioned index requires care: you need to send the query to all partitions, and combine all the results you get back.
+This approach to querying a partitioned database is sometimes known as scatter/gather, and it can make read queries on secondary indexes quire expensive.
+Even if you query the partitions in parallel, scatter/gather is prone to tail latency amplification.
+
+![secondary index by document](./secondary_index_by_document.png)
+
+#### Partitioning Secondary Indexes by Term
+
+We can construct a global index that covers data in all partitions.
+A global index must also be partitioned, but it can be partitioned differently from the primary key index.
+
+Red cars from all partitions appear under color:red in the index: but the index is partitioned so that colors starting with the letters a to r appear in partition 0 and colors with s to z appear in partition 1.
+We call this kind of index term-partitioned, because the term we're looking for determines the partition of the index.
+
+The advantage of a global index over a document-partitioned index is that it can make reads more efficient: rather than doing scatter/gather over all partitions, a client only needs to make a request to the partition containing the term that it wants.
+However, the downside of a global index is that writes are slower and more complicated, because a write to a single document may now affect multiple partitions of the index.
+
+![secondary index by term](./secondary_index_by_term.png)
+
+### Rebalancing Partitions
+
+The process of moving load from one node in the cluster to another is called rebalancing.
+
+- After rebalancing, the load should be shared fairly between the nodes in the cluster.
+- While rebalancing is happening, the database should continue accepting read and writing.
+- No more data than necessary should be moved between nodes, to make rebalancing fast and to minimize the network and disk I/O load.
+
+#### How not to do it: hash mod n
+
+The problem with the mod N approach is that if the number of nodes N changes, most of the keys will need to be moved from one node to another.
+
+#### Fixed number of partitions
+
+Create many more partitions than there are nodes, and assign several partitions to each node.
+Only entire partitions are moved between nodes.
+The number of partitions does not change, nor does the assignment of keys to partitions.
+The only thing that changes is the assignment of partitions to nodes.
+
+```mermaid
+---
+title: Adding a new node to a database cluster with multiple partitions per node.
+---
+flowchart
+  subgraph before[Before rebalancing]
+   direction LR
+    subgraph bnode0[Node 0]
+      bp0["| p0 | p4 | p8 | p12 |"]
+    end
+    subgraph bnode1[Node 1]
+      bp1["| p1 | p5 | p9 | p13 |"]
+    end
+    subgraph bnode2[Node 2]
+      bp2["| p2 | p6 | p10 | p14 |"]
+    end
+    bnode0~~~bnode1~~~bnode2
+  end
+
+  subgraph after[After rebalancing]
+    subgraph anode0[Node 0]
+      ap0["| p0 | p8 | p12 |"]
+    end
+    subgraph anode1[Node 1]
+      ap1["| p1 | p5 | p13 |"]
+    end
+    subgraph anode2[Node 2]
+      ap2["| p2 | p06 | p10 |"]
+    end
+    subgraph anode3[Node 3]
+      ap4["| p4 | p9 | p14 |"]
+    end
+    anode0~~~anode1~~~anode2~~~anode3
+  end
+  before ~~~ after
+```
+
+#### Dynamic partitioning
+
+When a partition grows to exceed a configurable size, it is split into two partitions so that approximately half of the data ends up on each side of the split.
+Conversely, if lots of data is deleted and a partition shrinks below some threshold, it can be merged with an adjacent partition.
+
+#### Partitioning proportionally to nodes
+
+With dynamic partitioning, the number of partitions is proportional to the size of the dataset.
+With a fixed number of partitions the size of each partition is proportional to the size of the dataset.
+A third option is to make the number of partitions proportional to the number of nodes-in other words, to have a fixed number of partitions per node
+
+### Request Routing
+
+1. Allow clients to contact any node. If that node coincidentally owns the partition to which the request applies, it can handle the request directly; otherwise, it forwards the request to the appropriate node, receives the reply, and passes their reply along to the client.
+2. Send all requests from clients to a routing tier first, which determines the node that should handle each request and forwards it accordingly.
+3. Require that clients be aware of the partitioning and the assignment of partitions to nodes.
+
+![routing_request](./routing_request.png)
+
+Many distributed data systems rely on a separate coordination service such as Zoo-Keeper to keep track of this cluster metadata.
+Each node registers itself in ZooKeeper and ZooKeeper maintains the authoritative mappings of partitions to nodes.
+Other actors, such as the routing tier or the partitioning-aware client, can subscribe to this information in ZooKeeper.
+Whenever a partition changes ownership, or a node is added or removed, ZooKeeper notifies the routing tier so that it can keep its routing information up to date.
+
+```mermaid
+flowchart
+  client1[client] --get Danube--> routing[routing tier]
+  subgraph 1[ ]
+    routing[routing tier]-->database10[(Database0)] & database11[(Database1)] & database12[(Database2)]
+  end
+  database10 & database11 & database12 -.-> zookeeper -.-> routing
+```
 
 ## 7. Transactions
 
