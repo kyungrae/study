@@ -110,15 +110,24 @@ replaceOne takes a filter as the first parameter, but as the second parameter ex
 var joe = {name:"joe",friends:32,enemies:2}
 db.users.insertOne(joe)
 
-joe = {username:joe.name,relationships:{friends:joe.friends,enemies:joe.enemies}}
-db.users.replaceOne({name:joe.username}, joe)
+
+db.users.replaceOne(
+  {name:joe.username},
+  {
+    username: joe.name,
+    relationships: {
+      friends: joe.friends,
+      enemies: joe.enemies
+    }
+  }
+)
 ```
 
 #### Using Update Operators
 
 Update operators are special keys that can be used to specify complex update operations.
 
-##### Fields
+##### FIELD OPERATORS
 
 ```js
 // $inc
@@ -129,15 +138,15 @@ db.analytics.updateOne(
 
 // $set $unset
 db.users.updateOne({name:"joe"}, {$set: {favoriteBook:"War and peace"}})
-db.users.updateOne({name:"joe"}, {$unset :{favoriteBook:""}})
+db.users.updateOne({name:"joe"}, {$unset: {favoriteBook:""}})
 db.users.updateMany({birthdate:"10/13/1978"}, {$set: {gift:"Happy birthday"}})
 ```
 
-##### Array
+##### ARRAY OPERATORS
 
 ```js
 // $push
-db.blog.posts.updateOne({title: "A blog post"},{$push:{comments:"nice post."}})
+db.blog.posts.updateOne({title: "A blog post"}, {$push: {comments:"nice post."}})
 db.movies.updateOne(
   {genre:"horror"},
   {
@@ -145,14 +154,14 @@ db.movies.updateOne(
       top10: {
         $each: [{name:"Nightmare",rating:6.6}, {name:"Saw",rating:4.3}], 
         $slice: -10,
-        $sort: {rating:-1}
+        $sort: {rating: -1} // descending
       }
     }
   }
 )
 
 // $addToSet
-db.users.updateOne({name:"joe"},{$addToSet: {emails:"joe@gmail.com"}})
+db.users.updateOne({name: "joe"},{$addToSet: {emails: "joe@gmail.com"}})
 
 // $pop remove an element from the end/beginning of the array
 db.lists.updateOne({name:"joe"}, {$pop: {key: 1|-1}})
@@ -163,8 +172,8 @@ db.lists.updateOne({name:"joe"}, {$pull: {todo: "laundry"}})
 // manipulate values in arrays: by position or by using the position operator
 db.blog.posts.updateOne(
   {post: post_id},
-  {$set: {comments.$[elem].hidden:true}},
-  {arrayFilters: [{elem.votes:{$lte:-5}}]}
+  {$set: {"comments.$[elem].hidden": true}},
+  {arrayFilters: [{"elem.votes": {$lte: -5}}]}
 )
 ```
 
@@ -175,8 +184,8 @@ If a matching document is found, it will be updated normally.
 It can eliminate the race condition and cut down the amount of code by just sending an upsert to the database.
 
 ```js
-db.analytics.updateOne({url:"/example"}, {$inc:{pageviews:1}}, {upsert:true})
-db.users.updateOne({name:"joe"}, {$setOnInsert:{createdAt:new Date()}}, {upsert:true})
+db.analytics.updateOne({url: "/example"}, {$inc: {pageviews: 1}}, {upsert: true})
+db.users.updateOne({name: "joe"}, {$setOnInsert: {createdAt: new Date()}}, {upsert: true})
 ```
 
 #### Returning Updated Documents
@@ -309,6 +318,21 @@ This process continues until the cursor is exhausted and all results have been r
 db.foo.find().sort({x:1}).limit(1).skip(10)
 ```
 
+##### COMPARISON ORDER
+
+1. Minimum value
+2. Null
+3. Numbers
+4. String
+5. Object/document
+6. Array
+7. Binary data
+8. Object ID
+9. Date
+10. Timestamp
+11. Regular expression
+12. Maximum value
+
 #### Avoiding Large Skips
 
 Skip can be slow, since it has to find and then discard all the skipped results.
@@ -320,7 +344,7 @@ On the server side, a cursor takes up memory and resources.
 There are a couple of conditions that can cause the death of a cursor.
 First, when a cursor finishes iterating through the matching results, it will clean up.
 Another way is that, when a cursor goes out of scope on the client side, the drivers send the database a special message to let it know that it can kill that cursor.
-Finally, even if the user hasn't iterated through all the results and the cursor is still in scope, after 10 minutes of inactivity, a database will automatically die.
+Finally, even if the user hasn't iterated through all the results and the cursor is still in scope, after 10 minutes of inactivity, a database cursor will automatically die.
 
 Many drivers have implemented a function called immortal which tells the database not to time out the cursor.
 If you turn off a cursor's timeout, you must iterate through all of its results or kill it to make sure it gets closed.
