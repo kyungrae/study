@@ -118,7 +118,7 @@ PUT [인덱스 이름]
 
 매핑은 문서가 인덱스에 어떻게 색인되고 저장되는지 정의하는 부분이다.
 매핑을 어떻게 지정하느냐에 따라 서비스 운영 양상이 많이 달라지며 성능의 차이도 크다.
-동적 매핑은 예기치 않은 신규 필드가 포함된 데이터 인입 등의 상황에 있어 유연한 운영을 가능하게 해 준다.
+동적 매핑은 예기치 않은 신규 필드가 포함된 데이터 인입 상황에 있어 유연한 운영을 가능하게 해 준다.
 하지만 신규 필드 추가가 예정돼 있다면 동적 매핑에 기대지 말고 매핑을 지정하는 것이 좋다.
 
 #### array
@@ -134,7 +134,8 @@ object 타입의 배열은 배열을 구성하는 객체 데이터를 독립적�
 ```json
 {
   "spec.cores": [12, 6, 6],
-  "spec.memory": [128, 64, 32]
+  "spec.memory": [128, 64, 32],
+  "spec.storage": [8000, 8000, 4000]
 }
 ```
 
@@ -151,9 +152,24 @@ GET nested_test/_search
   "query": {
     "nested": {
       "path": "spec",
-      "query": {}
+      "query": {
+        "bool": {
+          "must": [
+            {"term": {"spec.cores": "6"}},
+            {"term": {"spec.memory": "64"}},
+          ]
+        }
+      }
     }
   }
+}
+
+{
+  "spec": [
+    {"cores":12, "memory":128, "storage": 8000},
+    {"cores":6, "memory":64, "storage": 8000},
+    {"cores":6, "memory":32, "storage": 4000}
+  ]
 }
 ```
 
@@ -162,7 +178,7 @@ GET nested_test/_search
 text로 지정된 필드 값은 analyzer가 적용된 후 색인된다.
 analyzer에 의해 여러 token으로 쪼개지고 쪼개진 token으로 inverted index를 구성한다.
 최종적으로 역색인에 들어가는 형태를 term이라고 한다.
-keyword로 지정된 필드 값은 노말라이저(normalizer)라는 간단한 전처리만을 거친 뒤 단일 term으로 inverted index에 들어간다.
+keyword로 지정된 필드 값은 normalizer라는 간단한 전처리만을 거친 뒤 단일 term으로 inverted index에 들어간다.
 
 ```mermaid
 flowchart
@@ -277,7 +293,7 @@ PUT analyzer_test
 템플릿을 사전에 정의해 두면 인덱스 생성 시 사전 정의한 설정대로 인덱스가 생성된다.
 
 ```HTTP
-PUT _index_template/my_template
+PUT _index_template/[template 이름]
 {
   "index_patterns": ["pattern_test_index-*"],
   "priority": 1,
@@ -310,3 +326,652 @@ PUT _index_template/my_template
 라우팅 값이 다르게 지정되면 한 인덱스 내에서 같은 _id를 가진 문서가 여러 개 생길 수도 있다.
 
 ## 4. 데이터 다루기
+
+### 4.1 단건 문서 API
+
+#### 4.1.1 색인 API
+
+```HTTP
+// 덮어 씌우기 가능
+PUT [인덱스 이름]/_doc/[_id]
+
+// _id 자동 생성
+POST [인덱스 이름]/_doc
+
+// 덮어 씌우기 금지
+PUT [인덱스 이름]/_create/[_id]
+POST [인덱스 이름]/_create/[_id]
+```
+
+##### refresh
+
+refresh 매개변수를 지정하면 문서를 색인한 직후에 해당 샤드를 refresh 해서 즉시 검색 가능하게 만들 것인지 엽를 지정할 수 있다.
+
+| refresh 값 | 동작 방식 |
+|---|---|
+| true | 색인 직후 문서가 색인된 샤드를 refresh하고 응답을 반환한다. |
+| wait_for | 색인 이후 문서가 refresh될 때 까지 기다린 후 응답을 반환한다. |
+| false | refresh와 관련된 동작을 수행하지 않는다.(default) |
+
+#### 4.1.2 조회 API
+
+검색과는 다르게 색인이 refresh되지 않은 상태에서도 변경된 내용을 확인할 수 있다.
+
+```HTTP
+// 메타 데이터 포함
+GET [인덱스 이름]/_doc/[_id]
+
+// 본문만 검색
+GET [인덱스 이름]/_source/[_id]
+
+// _source_includes와 _source_excludes 파라미터를 사용해 필요한 조회한다.
+GET [인덱스 이름]/_doc[_id]?_source_includes=p*,views&_source_excludes=public
+```
+
+#### 4.1.3 업데이트 API
+
+엘라스틱서치의 업데이트 작업은 기존 문서의 내용을 조회한 뒤 부분 업데이트될 내용을 합쳐 새 문서를 만들어 색인하는 형태로 진행된다.
+
+```HTTP
+// doc 방식
+POST [인덱스 이름]/_update/[_id]
+{
+  "doc": {
+    "views": 36,
+    "updated": "2019-01-17T1405:01.234Z"
+  },
+  "detect_noop": false, // 기존 문서를 확인하고 변경할 내용이 없다면 쓰기 작업을 하지 않는다.
+  "doc_as_upsert": true // 기존 문서가 없을 때 신규 문서로 추가하는 옵션
+}
+
+// script 방식
+POST [인덱스 이름]/_update/[_id]
+{
+  "script": {
+    "source": "ctx._source.views += params.amount", // 스크립트 본문
+    "lang": "painless",
+    "params": {                                     // 스크립트 본문에서 사용할 매개변수
+      "amount": 1
+    }
+  }
+}
+```
+
+#### 4.1.4 삭제 API
+
+```HTTP
+DELETE [인덱스 이름]/_update/[_id]
+```
+
+### 4.2 복수 문서 API
+
+#### 4.2.1 bulk API
+
+bulk API는 요청 본문을 JSON이 아니라 NDJSON 형태로 만들어서 보낸다.
+NDJSON은 여러 줄의 JSON을 줄바꿈 문자로 구분한다.
+Content-Type 헤더도 application/json 대신 application/x-ndjson을 사용해야 한다.
+동일한 인덱스, _id, 라우팅 조합을 가진 요청은 동일한 주 샤드로 요청돼 bulk API 기술된 순서대로 실행된다.
+
+```HTTP
+POST _bulk
+{"index":{"_index":"bulk_test","_id":"1"}}
+{"field1":"value1"}
+{"delete":{"_index":"bulk_test","_id":2}}
+{"create":{"_index":"bulk_test","_id":3}}
+{"field1":"value3"}
+{"update":{"_id":"1","_index":"bulk_test"}}
+{"doc":{"field2":"value2"}}
+{"index":{"_index":"bulk_test","_id":4,"routing":"a"}}
+{"field1":"value4"}
+
+POST [인덱스 이름]/_bulk
+{"delete":{"_index":"bulk_test","_id":2}}
+```
+
+#### 4.2.2 multi get API
+
+```HTTP
+GET _mget
+{
+  "docs":[
+    {
+      "_index": "bulk_test",
+      "_id": 1
+    },
+    {
+      "_index": "bulk_test",
+      "_id": 4,
+      "routing": "a"
+    },
+    {
+      "_index": "my_index",
+      "_id": 1,
+      "_source": {
+        "include": ["p*"],
+        "exclude": ["point"]
+      }
+    }
+  ]
+}
+
+GET [인덱스 이름]/_mget
+{
+  "ids": ["1", "3"]
+}
+```
+
+#### 4.2.3 update by query
+
+```HTTP
+POST bulk_test/_update_by_query
+{
+  "script": {
+    "source": "ctx._source.field1 = ctx._source.field1 + '-' + ctx._id",
+    "lang": "painless"
+  },
+  "query": {
+    "exists": {
+      "field": "field1"
+    }
+  }
+}
+```
+
+엘라스틱서치는 query 절의 검색 조건에 맞는 문서를 찾아 일종의 스냅샷을 찍는다.
+이후 각 문서마다 지정된 스크립트에 맞게 업데이트를 실행한다.
+여러 문서의 업데이트가 순차적으로 진행되는 도중 다른 작업으로 인해 문서에 변경이 생길 수 있다.
+스냅샷을 찍어 뒀던 문서에 변화가 생긴 문서를 발견하면 이를 업데이트하지 않는다.
+conflict 매개변수를 abort로 지정하면 충돌 발견 시 작업을 중단하며, proceed로 지정하면 다음 작업으로 넘어간다.
+
+##### Throttling
+
+update by query API는 문제가 생긴 데이터를 일괄적으로 처리하거나 변경된 비즈니스 요건에 맞게 데이터를 일괄 수정하는 작업 등에 많이 활용된다.
+이런 대량 작업을 수행하면 운영 중인 서비스에도 영향을 줄 수 있다.
+그러한 상황을 피하기 위해 적절한 throttling을 적용해 작업 속도를 조정하고 클러스터 부하와 서비스 영향을 최소화할 수 있다.
+
+```HTTP
+POST bulk_test/_update_by_query?scroll_size=1000&scroll=1m&requests_per_seconds=500
+```
+
+- scroll_size  
+업데이트 전 먼저 검색을 수행하는 도큐먼트 수
+- scroll  
+검색 조건을 만족한 모든 문서를 대상으로 검색이 처음 수행됐을 당시 상태를 search context에 보존한다.
+search context를 얼마나 보존할 지 지정하는 것이 scroll 설정이다.
+- request_per_second  
+초당 몇 개까지 작업을 수행할 것인지를 지정한다.
+
+##### 비동기적 요청과 tasks API
+
+엘라스틱서치에서 update by query 요청 시에는 wait_for_completion 매개변수를 false로 지정하면 비동기적으로 처리를 할 수 있다.
+
+```HTTP
+// 등록
+POST bulk_test/_update_by_query?wait_for_completion=false
+
+// 조회
+GET .tasks/[task id]
+GET _tasks/[task id]
+
+// 취소
+POST _tasks/[task id]/_cancel
+
+// throttling 동적 변경
+POST _update_by_query/hQF2DNEeSAqUWxV9OzSKDg:428971/_rethrottle?requests_per_second=100
+
+// task 결과 삭제
+DELETE .tasks/_doc/hQF2DNEeSAqUWxV9OzSKDg:428971
+```
+
+##### slicing
+
+slices 매개변수를 지정하면 검색과 업데이트를 지정한 개수로 쪼개 병렬적으로 수행한다.
+auto로 지정하면 엘라스틱서치가 적절한 개수를 지정해서 작업을 병렬 수행한다.
+보통은 지정한 인덱스의 주 샤드 수가 슬라이스의 수가 된다.
+
+```HTTP
+POST [인덱스 이름]/_update_by_query?slices=auto
+```
+
+#### 4.2.4 delete by query
+
+지정한 검색 쿼리로 삭제할 대상을 지정한 뒤에 삭제를 수행하는 작업이다.
+
+```HTTP
+POST [인덱스 이름]/_delete_by_query
+```
+
+### 4.3 검색 API
+
+#### 4.3.1 검색 대상 지정
+
+```HTTP
+GET [인덱스 이름]/_search
+POST [인덱스 이름]/_search
+GET _search
+POST _search
+```
+
+인덱스 이름을 지정할 때는 와일드카드 문자 *를 사용할 수 있다.
+콤마로 구분하여 검색 대상을 여럿 지정하는 것도 가능하다.
+
+#### 4.3.2 쿼리 DSL 검색과 쿼리 문자열 검색
+
+```HTTP
+// 쿼리 DSL 검색
+GET my_index/_search
+{
+  "query": {
+    "match": {
+      "title": "hello"
+    }
+  }
+}
+
+// 쿼리 문자열 검색
+GET my_index/_search?q=title:hello
+```
+
+#### 4.3.3 match_all 쿼리
+
+match_all 쿼리 모든 문서를 매치하는 쿼리
+
+```HTTP
+POST [인덱스 이름]/_search
+{
+  "query": {
+    "match_all": {}
+  }
+}
+```
+
+#### 4.3.4 match 쿼리
+
+지정한 필드의 내용이 질의어와 매치되는 문서를 찾는 쿼리다.
+필드가 text 타입이라면 등록된 analyzer로 질의어가 분석된다.
+이 때 질의어 term과 field 값의 term의 기본 match 동작은 OR 조건으로 동작한다.
+operator를 and로 지정하면 모든 term이 매치된 문서만 검색되도록 변경할 수 있다.
+
+```HTTP
+POST [인덱스 이름]/_search
+{
+  "query": {
+    "match": {
+      "fieldName": {
+        "query": "test query sentence"
+      }
+    }
+  }
+}
+
+POST [인덱스 이름]/_search
+{
+  "query": {
+    "match": {
+      "fieldName": {
+        "query": "test query sentence",
+        "operator": "and"
+      }
+    }
+  }
+}
+```
+
+#### 4.3.5 term & terms 쿼리
+
+term 쿼리는 지정한 필드의 값이 질의어와 정확히 일치하는 문서를 찾는 쿼리다.
+필드가 keyword 타입이라면 등록된 normalizer로 질의어가 분석된다.
+text 타입의 필드를 대상으로 term 쿼리를 사용하는 경우는 질의어는 normalizer 처리를 거치지만 필드의 값은 analyzer로 분석한 뒤 생성된 역색인을 이용하게 된다.
+
+```HTTP
+POST [인덱스 이름]/_search
+{
+  "query": {
+    "term": {
+      "fieldName": {
+        "value": "test"
+      }
+    }
+  }
+}
+
+POST [인덱스 이름]/_search
+{
+  "query": {
+    "terms": {
+      "fieldName": ["hello", "world"]
+    }
+  }
+}
+```
+
+#### 4.3.7 range 쿼리
+
+필드의 값이 특정 범위 내에 있는 문서를 찾는 쿼리다.
+엘라스틱서치는 문자열 필드를 대상으로 한 range 쿼리를 부하가 큰 쿼리로 분류한다.
+
+```HTTP
+POST [인덱스 이름]/_search
+{
+  "query": {
+    "range": {
+      "fieldName": {
+        "gte": 100,
+        "lt": 200
+      }
+    }
+  }
+}
+
+POST [인덱스 이름]/_search
+{
+  "query": {
+    "range": {
+      "dateField": {
+        "gte": "2019-01-15T00:00:00.000Z||+36/d",
+        "lt": "now-3h/d"
+      }
+    }
+  }
+}
+```
+
+##### Date Math
+
+- ||: 날짜 시간 문자열의 마지막에 붙인다.
+- now: 현재 시각을 나타낸다.
+- +&-: 지정된 시간만큼 더하거나 빼는 연산을 수행한다.
+- /: 버림을 수행한다.
+
+#### 4.3.8 prefix 쿼리
+
+필드의 값이 지정한 질의어로 시작하는 문서를 찾는 쿼리다. prefix 검색도 무거운 쿼리로 분류된다.
+만약 prefix 쿼리를 서비스로 호출 용도로 사용하려면 매핑에 index_prefixes 설정을 넣는 방법이 있다.
+
+```HTTP
+POST [인덱스 이름]/_search
+{
+  "query": {
+    "prefix": {
+      "fieldName": {
+        "value": "hello"
+      }
+    }
+  }
+}
+
+POST [인덱스 이름]
+{
+  "mappings": {
+    "properties": {
+      "prefixField": {
+        "type": "text",
+        "index_prefixes": {
+          "min_chars": 3,
+          "max_chars": 5
+        }
+      }
+    }
+  }
+}
+```
+
+#### 4.3.9 exists 쿼리
+
+지정한 필드를 포함한 문서를 검색한다.
+
+```HTTP
+POST [인덱스 이름]/_search
+{
+  "query": {
+    "exists": {
+      "field": "fieldName"
+    }
+  }
+}
+```
+
+#### 4.3.10 bool 쿼리
+
+여러 쿼리를 조합하여 검색하는 쿼리다. must, must_not, filter, should 4가지 종류의 조건절에 다른 쿼리를 조합하여 사용한다.
+must 조건절과 filter 조건절에 들어간 하위 쿼리는 모두 AND 조건으로 만족해야 최종 검색 결과에 포함된다.
+must_not 조건절에 들어간 쿼리를 만족하는 문서는 최종 검색 결과에서 제외된다.
+should 조건절에 들어간 쿼리는 minimum_should_match에 지정한 개수 이상의 하위 쿼리를 만족하는 문서가 최종 검색 결과에 포함된다.
+
+```HTTP
+POST [인덱스 이름]/_search
+{
+  "query": {
+    "bool": {
+      "must": [
+        {"term": {"field1.keyword": {"value": "hello"}}},
+        {"term": {"field2.keyword": {"value": "world"}}}
+      ], 
+      "filter": [
+        {"term": {"field3.keyword": {"value": true}}}
+      ],
+      "must_not": [
+        {"term": {"field4.keyword": {"value": "elasticsearch-test"}}}
+      ],
+      "should": [
+        {"term": {"field4.keyword": {"value": "elasticsearch"}}},
+        {"term": {"field5.keyword": {"value": "lucene"}}}
+      ],
+      "minimum_should_match": 1
+    }
+  }
+}
+```
+
+##### filter context과 filter context
+
+점수를 매기지 않고 단순히 조건을 만족하는지 여부만을 참과 거짓으로 따지는 검색 과정을 filter context라고 한다.
+문서가 주어진 검색 조건을 얼마나 더 잘 만족하는지 유사도 점수를 매기는 검색 과정을 filter context라고 한다.
+
+| | query context | filter context |
+|---|---|---|
+| 질의 개념 | 문서가 질의어와 얼마나 잘 매치되는가 | 질의 조건을 만족하는가 |
+| 점수 | 계산함 | 계산하지 않음 |
+| 성능 | 상대적으로 느림 | 상대적으로 빠름 |
+| 캐시 | 캐시 활용 불가 | 캐시 활용 가능 |
+| 종류 | bool의 must, bool의 should, match, term 등 | bool의 filter, bool의 must_not, exists, range, constant_score 등 |
+
+##### 쿼리 수행 순서
+
+엘라스틱서치는 검색 요청을 받으면 내부적으로 쿼리를 lucene의 여러 쿼리로 쪼갠 뒤 조합하여 재작성한다.
+그 뒤 쪼개진 각 쿼리를 수행할 경우 비용이 얼마나 소모되는지 내부적으로 추정한다.
+이 비용 추정에는 역색인에 저장해 둔 정보나 통계 정보 등이 활용된다.
+추정된 비용과 효과를 토대로 유리할 것으로 생각되는 부분을 먼저 수행한다.
+
+#### 4.3.11 constant_score 쿼리
+
+지정한 쿼리를 filter context에서 검색하는 쿼리다.
+
+```HTTP
+POST [인덱스 이름]/_search
+{
+  "query": {
+    "constant_score": {
+      "filter": {
+        "term": {
+          "fieldName": "hello"
+        }
+      }
+    }
+  }
+}
+```
+
+#### 4.3.12 그 외 주요 매개 변수
+
+##### explain
+
+explain을 사용하면 검색을 수행하는 동안 쿼리의 각 하위 부분에서 점수가 어떻게 계산되는지 설명한다.
+
+```HTTP
+POST [인덱스 이름]/_search?explain=true
+```
+
+##### search_type
+
+유사도 점수를 계산할 때 각 샤드 레벨에서 계산을 끝낼지 여부를 선택할 수 있다.
+
+- query_then_fetch: 각 샤드 레벨에서 유사도 점수 계산을 끝낸다.
+- dfs_query_then_fetch: 모든 샤드로부터 정보를 모아 유사도 점수를 글로벌하게 계산한다.
+
+#### 4.3.13 검색 결과 정렬
+
+sort를 지정하면 검색 결과를 정렬할 수 있다. 필드 이름 외에도 _score나 _doc을 지정할 수 있다.
+
+```HTTP
+POST [인덱스 이름]/_search
+{
+  "query": {},
+  "sort": [
+    {"field1": {"order": "desc"}},
+    {"field2": {"order": "asc"}},
+    "field3"
+  ]
+}
+```
+
+#### 4.3.14 페이지네이션
+
+##### from과 size
+
+size는 검색 결과로 몇 개의 문서를 반환할 것인지 지정한다. form은 몇 번째 문서부터 결과를 반환할지 오프셋을 지정한다.
+from과 size 페이지네이션은 두 가지 문제점이 있다.
+첫번째는 from 값이 올라갈수록 무거운 검색을 수행한다는 점이다.
+두번째는 현재 페이지 검색 요청과 이전 페이지 검색 요청 사이에 새로운 문서가 색인되거나 삭제될 수 있기 때문에 데이터를 중복이나 누락 없이 제공할 수 없다.
+
+```HTTP
+POST [인덱스 이름]/_search
+{
+  "from": 10,
+  "size: 5,
+  "query": {}
+}
+```
+
+##### scroll
+
+검색 조건에 매칭되는 전체 문서를 모두 순회해야 할 때 적합한 방법이다.
+스크롤을 순회하는 동안에는 최초 검색 시의 search context가 유지된다.
+scroll은 search context을 보존한 뒤 전체 문서를 순회하는 동작 특성상 정렬 여부가 상관 없는 작업에서 사용하는 경우가 많다.
+_doc로 정렬하면 유사도 점수를 계산하지 않으며 정렬을 위한 별도의 자원도 사용하지 않는다.
+
+```HTTP
+# 첫 페이지
+POST [인덱스 이름]/_search?scroll=1m
+{
+  "size": 1000,
+  "query": {}
+}
+
+# 다음 페이지
+POST _search/scroll
+{
+  "scroll_id": "id value",
+  "scroll": "1m"
+}
+```
+
+##### search_after
+
+서비스 사용자에게 검색 결과를 요청케 하고 결과에 페이지네이션을 제공하는 용도라면 search_after를 사용하는 것이 가장 적합하다.
+search_after에는 sort를 지정해야 한다. 이때 동일한 정렬 값이 등장할 수 없도록 최소한 1개 이상의 동점 제거(tiebreaker)용 필드를 지정해야 한다.
+
+```HTTP
+// 첫 페이지
+POST kibana_sample_data_ecommerce/_search
+{
+  "size": 20,
+  "query": {
+    "term": {
+      "currency": {
+        "value": "EUR"
+      }
+    }
+  },
+  "sort": [
+    {"order_date": "desc"},
+    {"order_id": "asc"}
+  ]
+}
+
+# 다음 페이지
+POST kibana_sample_data_ecommerce/_search
+{
+  "size": 20,
+  "query": {
+    "term": {
+      "currency": {
+        "value": "EUR"
+      }
+    }
+  },
+  "sort": [
+    {"order_date": "desc"},
+    {"order_id": "asc"}
+  ],
+  "search_after": [1736627990000, "591924"]
+}
+```
+
+동점 제거용 필드에는 문서를 고유하게 특정할 수 있는 값이 들어가야 한다.
+그러나 _id 값을 동점 제거용 기준 필드로 사용하는 것은 좋지 않다.
+_id 필드는 doc_values 캐시가 꺼져 있기 때문에 이를 기준으로 하는 정렬은 많은 메모리를 사용하게 된다.
+_id 필드값과 동일한 값을 별도의 필드에 저장해 뒀다가 동점 제거용으로 사용하는 편이 낫다.
+
+point in time API는 검색 대상의 상태를 고정할 때 사용한다. keep_alive 매개변수로 상태를 유지할 시간을 지정한다.
+pit를 지정하면 동점 제거용 필드를 별도로 지정할 필요가 없다. 정렬 기준 필드를 하나라도 지정하면 _shard_doc이라는 동점 제거용 필드에 대한 오름차순 정렬이 맨 마지막에 자동으로 추가된다.
+
+```HTTP
+// id 생성
+POST kibana_sample_data_ecommerce/_pit?keep_alive=1m
+
+// 첫 페이지
+POST _search
+{
+  "size": 20,
+  "query": {
+    "term": {
+      "currency": {
+        "value": "EUR"
+      }
+    }
+  },
+  "pit": {
+    "id": "697qAwEca2liYW5hX3NhbXBsZV9kYXRhX2Vjb21tZXJjZRZQaGVZbTNWVVFaS2I3MDBneEVlcnp3ABZoUUYyRE5FZVNBcVVXeFY5T3pTS0RnAAAAAAAAAQdpFjk0aG1yTkt0VDBlVVJ1Z05JVGtlMEEAARZQaGVZbTNWVVFaS2I3MDBneEVlcnp3AAA=",
+    "keep_alive": "1m"
+  }, 
+  "sort": [
+    {"order_date": "desc"}
+  ]
+}
+
+// 다음 페이지
+POST _search
+{
+  "size": 20,
+  "query": {
+    "term": {
+      "currency": {
+        "value": "EUR"
+      }
+    }
+  },
+  "pit": {
+    "id": "697qAwEca2liYW5hX3NhbXBsZV9kYXRhX2Vjb21tZXJjZRZQaGVZbTNWVVFaS2I3MDBneEVlcnp3ABZoUUYyRE5FZVNBcVVXeFY5T3pTS0RnAAAAAAAAAQdpFjk0aG1yTkt0VDBlVVJ1Z05JVGtlMEEAARZQaGVZbTNWVVFaS2I3MDBneEVlcnp3AAA=",
+    "keep_alive": "1m"
+  },
+  "search_after": [1736627990000, 2438],
+  "sort": [
+    {"order_date": "desc"}
+  ]
+}
+```
+
+### 4.4 집계
+
+### 4.5 서비스 코드에서 엘라스틱서치 클라이언트 이용

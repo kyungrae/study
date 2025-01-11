@@ -1,0 +1,16 @@
+cluster.name: test-es
+node.name: test-es-node01
+
+path:
+  data: /usr/share/elasticsearch/data
+  logs: /usr/share/elasticsearch/logs
+
+network: 127.0.0.1
+
+discovery.type: "single-node"
+xpack.security.enabled: false
+
+indices.query.query_string.allowLeadingWildcard: false
+search.allow_expensive_queries: false
+index.max_result_window: false
+

@@ -1,0 +1,4 @@
+server.port: 5601
+server.host: localhost
+server.publicBaseUrl: "http://localhost:5601"
+elasticsearch.hosts: ["http://localhost:9200"]
