@@ -2,8 +2,8 @@
 
 ## 5.1 트랜잭션
 
-트랜잭션은 하나의 논리적인 작업 셋에 하나의 쿼리가 있든 두 개 이상의 쿼리가 있든 관계없이 논리적인 작업 셋 자체가 100% 적용되거나(COMMIT) 아무것도 적용되지 않아야 함을 보장해 주는 것이다.
-트랜잭션 기능 덕분에 개발자는 Partial update로 인한 **예외 처리**와 **read-write 충돌**(inconsistent read)을 고민하지 않아도 된다.
+트랜잭션은 하나의 논리적인 작업 셋에 하나 이상의 논리적인 작업 셋 자체가 100% 적용되거나(COMMIT) 아무것도 적용되지 않아야 함을 보장해 주는 것이다.
+트랜잭션 기능 덕분에 개발자는 Partial update로 인한 **예외 처리**를 고민하지 않아도 된다.
 
 ### 주의 사항
 
@@ -62,26 +62,41 @@ InnoDB 잠금은 변경해야 할 레코드를 찾기 위해 검색한 인덱스
 
 - 상황
 
-| Connection1                                     | Connection2                                     | Connection3                                     |
-|-------------------------------------------------|-------------------------------------------------|-------------------------------------------------|
-| BEGIN;                                          |                                                 |                                                 |
-| UPDATE employees SET date=now() WHERE emp_no=1; |                                                 |                                                 |
-|                                                 | UPDATE employees SET date=now() WHERE emp_no=1; |                                                 |
-|                                                 |                                                 | UPDATE employees SET date=now() WHERE emp_no=1; |
+| Connection1 | Connection2 | Connection3 |
+|---|---|---|
+| BEGIN; | | |
+| UPDATE employees SET date=now() WHERE emp_no=1; | | |
+| | UPDATE employees SET date=now() WHERE emp_no=1; | |
+| | | UPDATE employees SET date=now() WHERE emp_no=1; |
 
 - 프로세스 목록
 
+```sql
+SHOW PROCESSLIST;
+```
+
 | Id | User | Host | db | Command | Time | State | Info |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| 5 | event\_scheduler | localhost | null | Daemon | 7933 | Waiting on empty queue | null |
 | 8 | root | localhost | employees | Sleep | 12 |  | null |
 | 9 | root | localhost | employees | Query | 7 | updating | update employees set date=now\(\) where emp\_no=1 |
 | 10 | root | localhost | employees | Query | 6 | updating | update employees set date=now\(\) where emp\_no=1 |
-| 17 | root | localhost:55994 | hama | Query | 0 | init | /\* ApplicationName=DataGrip 2023.1.2 \*/ SHOW PROCESSLIST |
 
 - 잠금 대기 순서
 
-| wating\_trx\_id | wating\_thread | waiting | blocking\_trx\_id | blocking\_thread | blocking\_query |
+```SQL
+SELECT
+  r.trx_id waiting_trx_id,
+  r.trx_mysql_thread_id waiting_thread,
+  r.trx_query waiting_query,
+  b.trx_id blocking_trx_id,
+  b.trx_mysql_thread_id blocking_thread,
+  b.trx_query blocking_query
+FROM performance_schema.data_lock_waits w
+INNER JOIN information_schema.innodb_trx b ON b.trx_id = w.blocking_engine_transaction_id
+INNER JOIN information_schema.innodb_trx r ON r.trx_id = w.requesting_engine_transaction_id;
+```
+
+| wating\_trx\_id | wating\_thread | waiting\_query | blocking\_trx\_id | blocking\_thread | blocking\_query |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | 48862 | 10 | update employees set date=now\(\) where emp\_no=1 | 48860 | 8 | null |
 | 48862 | 10 | update employees set date=now\(\) where emp\_no=1 | 48861 | 9 | update employees set date=now\(\) where emp\_no=1 |
@@ -89,14 +104,18 @@ InnoDB 잠금은 변경해야 할 레코드를 찾기 위해 검색한 인덱스
 
 - 스레드의 구체적인 잠금
 
-| ENGINE | ENGINE\_LOCK\_ID | ENGINE\_TRANSACTION\_ID | THREAD\_ID | EVENT\_ID | OBJECT\_SCHEMA | OBJECT\_NAME | PARTITION\_NAME | SUBPARTITION\_NAME | INDEX\_NAME | OBJECT\_INSTANCE\_BEGIN | LOCK\_TYPE | LOCK\_MODE | LOCK\_STATUS | LOCK\_DATA |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| INNODB | 5771399856:1081:4423965112 | 48862 | 51 | 29 | employees | employees | null | null | null | 4423965112 | TABLE | IX | GRANTED | null |
-| INNODB | 5771399856:19:746:25:4848677912 | 48862 | 51 | 29 | employees | employees | null | null | PRIMARY | 4848677912 | RECORD | X,REC\_NOT\_GAP | WAITING | 100001 |
-| INNODB | 5771399064:1081:4423964088 | 48861 | 50 | 32 | employees | employees | null | null | null | 4423964088 | TABLE | IX | GRANTED | null |
-| INNODB | 5771399064:19:746:25:4848673304 | 48861 | 50 | 32 | employees | employees | null | null | PRIMARY | 4848673304 | RECORD | X,REC\_NOT\_GAP | WAITING | 100001 |
-| INNODB | 5771398272:1081:4423963064 | 48860 | 49 | 775 | employees | employees | null | null | null | 4423963064 | TABLE | IX | GRANTED | null |
-| INNODB | 5771398272:19:746:25:4848668696 | 48860 | 49 | 775 | employees | employees | null | null | PRIMARY | 4848668696 | RECORD | X,REC\_NOT\_GAP | GRANTED | 100001 |
+```sql
+SELECT * FROM performance_schema.data_locks\G
+```
+
+| ENGINE | ENGINE\_LOCK\_ID | ENGINE\_TRANSACTION\_ID | THREAD\_ID | EVENT\_ID | OBJECT\_SCHEMA | OBJECT\_NAME | INDEX\_NAME | OBJECT\_INSTANCE\_BEGIN | LOCK\_TYPE | LOCK\_MODE | LOCK\_STATUS | LOCK\_DATA |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| INNODB | 5771399856:1081:4423965112 | 48862 | 51 | 29 | employees | employees | null | 4423965112 | TABLE | IX | GRANTED | null |
+| INNODB | 5771399856:19:746:25:4848677912 | 48862 | 51 | 29 | employees | employees | PRIMARY | 4848677912 | RECORD | X,REC\_NOT\_GAP | WAITING | 100001 |
+| INNODB | 5771399064:1081:4423964088 | 48861 | 50 | 32 | employees | employees | null | 4423964088 | TABLE | IX | GRANTED | null |
+| INNODB | 5771399064:19:746:25:4848673304 | 48861 | 50 | 32 | employees | employees | PRIMARY | 4848673304 | RECORD | X,REC\_NOT\_GAP | WAITING | 100001 |
+| INNODB | 5771398272:1081:4423963064 | 48860 | 49 | 775 | employees | employees | null | 4423963064 | TABLE | IX | GRANTED | null |
+| INNODB | 5771398272:19:746:25:4848668696 | 48860 | 49 | 775 | employees | employees | PRIMARY | 4848668696 | RECORD | X,REC\_NOT\_GAP | GRANTED | 100001 |
 
 ## 5.4 MySQL의 격리 수준
 
@@ -108,5 +127,3 @@ InnoDB 잠금은 변경해야 할 레코드를 찾기 위해 검색한 인덱스
 | READ COMMITED   | 없음        | 발생                 | 발생              |
 | REPEATBLE READ  | 없음        | 없음                 | 발생(InnoDB는 없음) |
 | SERIAIZABLE     | 없음        | 없음                 | 없음              |
-
-`SELECT ... FOR UPDATE` 쿼리는 SELECT 하는 레코드에 쓰기 잠금을 걸어야 하는데, 언두 레코드에는 잠금을 걸 수 없다.

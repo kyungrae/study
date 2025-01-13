@@ -149,25 +149,6 @@ InnoDB는 Undo log를 이용해 이 기능을 구현한다.
 
 격리 수준이 SERIALIZABLE이 아닌 READ_UNCOMMITTED나 READ_COMMITED, REPEATABLE_READ 수준인 경우 INSERT와 연결되지 않은 순수한 읽기 작업은 다른 트랜잭션의 변경 작업과 관계없이 항상 잠금을 대기하지 않고 바로 실행된다.
 
-```mermaid
-flowchart
-  user1((user))
-  user2((user))
-  subgraph table
-    record1["1 | 서울"]
-    record2["2 | 부산"]
-    record3["3 | 인천"]
-
-    subgraph undo
-      undorecord3["3 | 경기"]
-    end
-    record3---undorecord3
-  end
-
-  user1 --update--> record3
-  user2 --select--> undorecord3
-```
-
 ### 4.2.5 자동 데드락 감지
 
 데드락 감지 스레드가 주기적으로 잠금 대기 그래프를 검사해 교착 상태에 빠진 트랜잭션들을 찾아서 그중 하나를 강제 종료한다.
