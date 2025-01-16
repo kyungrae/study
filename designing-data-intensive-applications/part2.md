@@ -25,6 +25,9 @@ Replication means keeping a copy of the same data on multiple machines that are 
 The most common solution for replication is called ***leader-based*** replication(also known as active/passive or master-slave replication).
 
 ```mermaid
+---
+title: Leader-based replication
+---
 flowchart LR
   user1@{ shape: circle, label: "User1" }
   leader@{ shape: cyl, label: "Leader replica" }
@@ -231,6 +234,9 @@ However, unlike a leader database, that coordinator does not enforce a particula
 #### Writing to the Database When a Node Is Down
 
 ```mermaid
+---
+title: Quorum write/read and Read repair
+---
 sequenceDiagram
   actor User1
   participant Replica1
@@ -288,6 +294,9 @@ Reads and writes that obey these r and w values are called *quorum* reads and wr
 The problem is that events may arrive in a different order at different nodes, due to variable network delays and partial failures.
 
 ```mermaid
+---
+title: Concurrent writes in a Dynamo-style datastore
+---
 sequenceDiagram
   actor User1
   participant Replica1
@@ -394,6 +403,8 @@ Once you have a suitable hash function for keys, you can assign each partition f
 
 Unfortunately by using the hash of the key for partitioning we lose a nice property of key-range partitioning.
 Keys that were nice adjacent are now scattered across all the partitions, so their sort order is lost.
+
+##### Consistent Hashing
 
 #### Skewed Workloads and Relieving Hot Spots
 
@@ -508,6 +519,9 @@ Other actors, such as the routing tier or the partitioning-aware client, can sub
 Whenever a partition changes ownership, or a node is added or removed, ZooKeeper notifies the routing tier so that it can keep its routing information up to date.
 
 ```mermaid
+---
+title: Using ZooKeeper to keep track of assignment of partitions to nodes
+---
 flowchart
   client1[client] --get Danube--> routing[routing tier]
   subgraph 1[ ]
@@ -517,6 +531,276 @@ flowchart
 ```
 
 ## 7. Transactions
+
+A transaction is a way for an application to group several reads and writes together into a logical unit.
+With transactions, error handling becomes much simpler for an application, because it doesn't need to worry about partial failure.
+
+### The Slippery Concept of a Transaction
+
+#### The meaning of ACID
+
+The safety guarantees provided by transactions are often described by the well known acronym ACID, which stands for Atomicity, Consistency, Isolation, and Durability.
+
+##### Atomicity  
+
+In multi-threaded programming, if one thread executes an atomic operation, that means there is no way that another thread could see the half-finished result of the operation.
+The system can only be in the state it was before the operation or after the operation, not something in between.
+
+In the context of ACID, the ability to abort a transaction on error and have all writes from that transaction discarded is the defining feature of ACID atomicity.
+
+##### Consistency
+
+The idea of ACID consistency is that you have certain statements about your data (invariants) that must always be true.
+If a transaction starts with a database that is valid according to these invariants, and any writes during the transaction preserve the validity, then you can be sure that the invariants are always satisfied.
+
+However, this idea of consistency depends on the application's notion of invariants, and it's the application's responsibility to define its transaction correctly so that they preserve consistency.
+
+##### Isolation
+
+Concurrently running transactions shouldn't interfere with each other.
+For Example, if one transaction makes several writes, then another transaction should see either all or none of those writes, but not subset.
+
+##### Durability
+
+Durability is the promise that once a transaction has been committed successfully, any data it has written will not be forgotten, even if there is a hardware fault or the database crashes.
+
+In a single-node database, durability typically means that the data has been written to nonvolatile storage such as a hard drive or SSD.
+In a replicated database, durability may mean that the data has been successfully copied to some number of nodes.
+In practice, there is no one technique that can provide absolute guarantees.
+
+#### Single-Object and Multi-Object Operations
+
+##### Handling errors and aborts
+
+Although retrying an aborted transaction is a simple and effective error handling mechanism, it isn't perfect.
+
+- If the transaction actually succeeded, but the network failed while the server tried to acknowledge the successful commit to the client, then retrying the transaction causes it to be performed twice-unless you have an additional application-level deduplication mechanism in place.
+- If the error is due to overload, retrying the transaction will make the problem worse, not better.
+To avoid such feedback cycles, you can limit the number of retries, use exponential back off, and handle overload-related errors differently from other errors.
+- It is only worth after transient errors(for example due to deadlock, isolation violation, temporary network interruptions, and failover); after permanent error(e.g., constraint violation) a retry would be pointless.
+- If the transaction also has side effects outside of the database, those side effects may happen even if the transaction is aborted. If you want to make sure that several different systems either commit or abort together, two-phase commit can help.
+
+### Weak Isolation Levels
+
+In practice, serializable isolation has a performance cost, and many databases don't want to play that price.
+It's therefore common for systems to use weaker levels of isolation, which protect against some concurrency issues, but not all.
+
+#### Read Committed
+
+1. When reading from the database, you will only see data that has been committed (no dirty read).
+2. When writing to the database, you will only overwrite data that has been committed (no dirty write).
+
+Databases prevent dirty writes by using row-level locks: when a transaction wants to modify a particular object, it must first acquire a lock on that object.
+It must then hold that lock until the transaction is committed or aborted.
+Only one transaction can hold the lock for any given object; if another transaction wants to write to the same object, it must wait until the first transaction is committed or aborted before it can acquire the lock and continue.
+This locking is done automatically by databases in read committed mode.
+
+Most databases prevent dirty reads using the approach illustrated below: for every object that is written, the database remembers both the old committed value and the new value set by the transaction that currently holds the write lock.
+While the transaction is ongoing, any other transactions that read the object are simply given the old value.
+Only when the new value is committed do transactions switch over to reading the new value.
+
+```mermaid
+---
+title: No dirty reads
+---
+sequenceDiagram
+  actor User1
+  participant Database
+  actor User2
+
+  note over Database: x=2
+  
+  User1 ->>+Database: set x=3
+  Database ->>-User1: ok
+  User2 ->>+Database: get x
+  Database ->>-User2: 2
+  User1 ->>Database : commit
+  User2 ->>+Database : get x
+  Database ->>-User2 : 3
+```
+
+#### Snapshot Isolation and Repeatable Read
+
+```mermaid
+---
+title: Read skew
+---
+sequenceDiagram
+  actor Alice
+  participant Account1
+  participant Account2
+  actor Transfer
+  note over Account1: balance=500
+  note over Account2: balance=500
+  Alice->>+Account1: select balance from accounts where id=1
+  Account1->>-Alice: 500
+  Transfer->>+Account1: update accounts set balance=balance+100 where id=1
+  Account1->>-Transfer: ok
+  note over Account1: balance=600
+  Transfer->>+Account2: update accounts set balance=balance-100 where=2
+  Account2->>-Transfer: ok
+  note over Account2: balance=400
+  Alice->>+Account2: select balance from accounts where id=2
+  Account2->>-Alice: 400
+```
+
+This anomaly is called a nonrepeatable read or read skew.
+Snapshot isolation  is the most common solution to this problem. The idea is that each transaction reads from a consistent snapshot of the database-that is,the transaction sees all the data that was committed in the database at the start of the transaction.
+
+From a performance point of view, a key principle of snapshot isolation is reader never block writers, and writes never block readers.
+This allows a database to handle long-running read queries on a consistent snapshot at the same time as processing writes, without any lock between the two.
+
+To implement snapshot isolation, the database must potentially keep several different committed versions of an object, because various in-progress transactions may need to see the state of the database at different points in time.
+Because it maintains several versions of an object side by side, this technique is known as multi-version concurrency control.
+
+#### Preventing Lost Updates
+
+The lost update problem can occur if an application reads some value from the database, modifies it, and writes back the modified value (a read-modify-write cycle).
+
+##### Atomic write operations
+
+Many databases provide atomic update operations, which remove the need to implement read-modify-write cycle in application code.
+They are usually the best solution if your code can be expressed in terms of those operations.
+
+```SQL
+UPDATE counters SET value = value + 1 where key = 'foo';
+```
+
+Atomic operations are usually implemented by taking an exclusive lock on the object when it is read so that no other transaction can read it until the update has been applied.
+This technique is sometimes known as cursor stability.
+Another option is to simply force all atomic operations to be executed on a single thread.
+
+Unfortunately object-relational mapping frameworks make it easy to accidentally write code that performs unsafe read-modify-write cycles instead of using atomic operations provided by the database.
+
+##### Explicit locking
+
+Another option for preventing lost updates is for the application to explicitly lock objects that are going to be updated.
+Then the application can perform a read-modify-write cycle, and if any other transaction tries to concurrently read the same object, it is forced to wait until the first read-modify-write cycle has completed.
+
+```SQL
+BEGIN TRANSACTION;
+SELECT * FROM figures where name = 'robot' AND game_id = 222 FOR UPDATE;
+-- Check whether move is valid
+UPDATE figures SET position = 'c4' WHERE id=1234;
+COMMIT;
+```
+
+This works, but to get it right, you need to carefully think about your application logic.
+It's easy to forget to add a necessary lock somewhere in the code, and thus introduce a race condition.
+
+##### Automatically detecting lost updates
+
+Atomic operation and locks are ways of preventing lost updates by forcing the read-modify-write cycles to happen sequentially.
+An alternative is to allow them to execute in parallel and, if the transaction manager detects a lost update, abort the transaction and force it to retry its read-modify-write cycle.
+
+Lost update detection is a great feature, because it doesn't require application code to use any special database features.
+
+##### Compare-and-set
+
+In databases that don't provide transactions, you sometimes find an atomic compare-and-set operation.
+The purpose of this operation is to avoid lost updates by allowing an update to happen only if the value has not changed since you last read it.
+
+```SQL
+UPDATE wiki_page SET content = 'new content' WHERE id = 1234 and  content = 'old content'
+```
+
+##### Conflict resolution and replication
+
+A common approach in such replicated databases is to allow concurrent writes to create several conflicting versions of a value, and to use application code or special data structures to resolve and merge these versions after the fact.
+
+#### Write Skew and Phantoms
+
+##### Examples of write skew
+
+- Manage doctors on-call shifts  
+It absolutely must have at least one doctor on call.
+- Meeting room booking system  
+It wants to enforce that there cannot be two bookings for the same meeting room at the same time.
+- Multiplayer game  
+It prevents players from moving two different figures to the same position on the board or potentially making some other move that violates the rules of the game.
+- Claiming a username  
+User has a unique name
+
+##### Characterizing write skew
+
+You think of write skew as a generalization of the lost update problem.
+Write skew can occur if two transactions read the same objects, and then update some of those objects (different transactions may update different objects).
+In the special case where different transactions update the same object, you get a dirty write or lost update anomaly.
+
+##### Phantoms causing write skew
+
+This effect, where a write in one transaction changes the result of a search query in another transaction, is called a phantom.
+Snapshot isolation avoids phantom in read-only queries.
+But in read-write transactions, phantom can lead to particularly tricky cases of write skew.
+
+##### Materializing conflicts
+
+If the problem of phantom is that there is no object to which we can attach the locks, perhaps we can artificially introduce a lock object into the database
+
+This approach is called materializing conflicts, because it takes a phantom and turns it into a lock conflict on a concrete set of rows that exist in the database.
+Unfortunately, it can be hard and error-prone to figure out how to materialize conflicts, and it's ugly to let a concurrency control mechanism leak into the application data model.
+For those reasons, materializing conflicts should be considered a last resort if no alternative is possible.
+A serializable isolation level is much preferable in most cases.
+
+### Serializability
+
+Serializable isolation is usually regarded as the strongest isolation level.
+It guarantees that even though transactions may execute in parallel, the end result is the same as if they had executed one at a time, serially, without any concurrency.
+
+#### Actual Serial Execution
+
+The simplest way of avoiding concurrency problems is to remove the concurrency entirely: to execute only one transaction at a time, in serial order, on a single thread.
+A system designed for single-threaded execution can sometimes perform better than a system that supports concurrency, because it can avoid the coordination overhead of locking.
+However, its throughput is limited to that of a single CPU core.
+
+- Every transaction must be small and fast, because it takes only one slow transaction to stall all transaction processing.
+- It is limited to use cases where the active dataset can fit in memory. Rarely accessed data could potentially be moved to disk, but if it needed to be accessed in a single-thread transaction, the system would get very slow.
+- Write throughput must be slow enough to be handled on a single CPU core, or else transactions need to be partitioned without requiring cross-partition coordination.
+- Cross-partition transactions are possible, but there is a hard limit to the extent to which they can be used.
+
+#### Two-Phase Locking (2PL)
+
+Two phase locking is similar, but makes the lock requirements much stronger.
+Several transactions are allowed to concurrently read the same object as long as nobody is writing to it.
+But as soon as anyone wants to write an object, exclusive access is required.
+In 2PL, writers don't just block other writers; they also block readers and vice versa.
+The lock can either be in shared mode or in exclusive mode.
+
+The big downside of two-phase locking is performance: transaction throughput and response times of queries are significantly worse under two-phase locking than under weak isolation.
+This is partly due to the overhead of acquiring and releasing all those locks, but more importantly due to reduced concurrency.
+
+Most databases with 2PL actually implement index-range locking, which is a simplified approximation of predicate locking.
+
+#### Serializable Snapshot Isolation (SSI)
+
+Two-phase locking is a so-called pessimistic concurrency control mechanism: it is based on the principle that if anything might possibly go wrong, it's better to wait until the situation is safe again before doing anything.
+It is like mutual exclusion, which is used to protect data structures in multi-threaded programming.
+
+Serial execution is pessimistic to the extreme.
+We compensate for the pessimism by making each transaction very fast to execute, so it only needs to hold the "lock" for a short time.
+
+Serializable snapshot is an optimistic concurrency control technique.
+Optimistic in this context means that instead of blocking if something potentially dangerous happens, transactions continue anyway, in the hope that everything will turn out all right.
+When a transaction wants to commit, the database checks whether anything had happened (i.e., whether isolation was violated); if so, the transaction is aborted and to be retried.
+
+It performs badly if there is high contention, as this leads to a high proportion of transactions needing to abort.
+However, if there is enough spare capacity, optimistic concurrency control techniques tend to perform better than pessimistic ones.
+Content can be reduced with commutative atomic operations: for example, if several transactions concurrently want to increment a counter, it doesn't matter in which order the increments are applied.
+
+##### Decision based on an outdated premise
+
+The database doesn't know how the application logic uses the result of that query.
+To be safe, the database needs to assume that any change in the query result (the premise) means that writes in that transaction may be invalid.
+In other words, there may be a causal dependency between the queries and the writes in the transaction.
+
+##### Detecting writes that affect prior reads
+
+![detecting writes that affect prior reads](./detecting_writes.png)
+
+##### Performance of serializable snapshot isolation
+
+One trade-off is the granularity at which transactions' reads and writes are tracked.
+Compared to two-phase locking, the big advantage of serializable snapshot isolation is that one transaction doesn't need to block waiting for locks held by another transaction.
 
 ## 8. The Trouble with Distributed Systems
 

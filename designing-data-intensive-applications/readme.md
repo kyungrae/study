@@ -4,4 +4,4 @@
 
 ## [Part Ⅱ. Distributed Data](./part2.md)
 
-## [Part Ⅲ. Dereived Data](./part3.md)
+## [Part Ⅲ. Derived Data](./part3.md)

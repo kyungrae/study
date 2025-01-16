@@ -189,6 +189,12 @@ Binary schema-driven formats like Thrift, Protocol Buffers, and Avro allow compa
 The schemas can be useful for documentation and code generation in statically typed languages.
 However, they have the downside that needs to be decoded before it is human-readable.
 
+#### What is the writer's schema
+
+- Large file with lots of records  
+- Database with individually written records
+- Sending records over a network connection
+
 ### Modes of Dataflow
 
 - Dataflow Through Databases  
