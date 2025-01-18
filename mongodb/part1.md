@@ -35,8 +35,6 @@ A collection is a group of documents.
 
 A database is a group of collections.
 
-By concatenating a database name with a collection in that database you can get a fully qualified collection name, which is called a namespace.
-
 ### Data Types
 
 ```js
@@ -60,14 +58,17 @@ By concatenating a database name with a collection in that database you can get 
 
 Every document stored in MongoDB must have an "_id" key.
 In a single collection, every document must have a unique value for "_id".
-
 The ObjectId class is designed to be lightweight, while still being easy to generate globally unique ways across different machines.
-It is difficult and time-consuming to synchronize autoincrementing primary keys across multiple servers.
 ObjectIds use 12 bytes of storage.
 
 - A 4-byte timestamp, representing the ObjectId's creation, measured in seconds.
 - A 5-byte random value generated once per process.
 - A 3-byte incrementing counter, initialized to a random value.
+
+```js
+// 6777ea91-951dba9964-fc0424
+ObjectId('6777ea91951dba9964fc0424')
+```
 
 ## 3. Creating, Updating, and Deleting Documents
 
@@ -109,7 +110,6 @@ replaceOne takes a filter as the first parameter, but as the second parameter ex
 ```js
 var joe = {name:"joe",friends:32,enemies:2}
 db.users.insertOne(joe)
-
 
 db.users.replaceOne(
   {name:joe.username},
@@ -313,6 +313,8 @@ This process continues until the cursor is exhausted and all results have been r
 - limit: sets an upper limit.
 - skip: skip first n matching documents and return the rest of the matches.
 - sort: takes an object: a set of key value pairs where the keys are key names and the values are the sort directions.
+
+MongoDB can't sort documents when documents are bigger than 32MB. It will just error out.
 
 ```js
 db.foo.find().sort({x:1}).limit(1).skip(10)

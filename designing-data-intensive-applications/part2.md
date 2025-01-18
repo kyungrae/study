@@ -9,7 +9,7 @@ There are various reasons why you might want to distribute a database across mul
 - Latency  
   If you have users around the world, you might want to have servers at various locations worldwide so that each user can be served from a datacenter that is geographically close to them.
 
-In the shared-nothing architecture approach, Each machine running the database software is called node.
+In the shared-nothing architecture approach, each machine running the database software is called node.
 Each node uses its CPUs, RAM, and disks independently.
 Any coordination between nodes is done at the software level, using a conventional network.
 
@@ -22,7 +22,7 @@ Replication means keeping a copy of the same data on multiple machines that are 
 
 ### Leaders and Followers
 
-The most common solution for replication is called ***leader-based*** replication(also known as active/passive or master-slave replication).
+The most common solution for replication is called **leader-based** replication(also known as active/passive or master-slave replication).
 
 ```mermaid
 ---
@@ -67,14 +67,13 @@ This could be done through an election process, or a new leader could be appoint
 The best candidate for leadership is usually the replica with the most up-to-date data changes from the old leader.
 3. Reconfiguring the system to use the new leader.
 Clients now need to send their write requests to the new leader.
-If the old leader comes back, it might still believe that it is the leader, not realizing that the other replicas have forced it to step down.
+If the old leader comes back, it might still believe that it is the leader.
 The system needs to ensure that the old leader becomes a follower and recognizes the new leader.
 
 Failover is fraught with things that can go wrong:
 
 - If asynchronous replication is used, the new leader may not have received all the writes from the old leader before it failed.
-If the former leader rejoin the cluster after a new leader has been chosen, what should happen to those writes?
-The most common solution is for the old leader's unreplicated writes to simply be discarded, which may violate client's durability expectations.
+If the former leader rejoin the cluster after a new leader has been chosen, the old leader's unreplicated writes usually are discarded, which may violate client's durability expectations.
 - Discarding writes is especially dangerous if other storage systems outside of the database need to be coordinated with the database contents.
 For example, an out-of-date MySQL follower was promoted to leader.
 The database used an autoincrementing counter to assign primary keys to new rows, it reused some primary keys that were previously assigned by the old leader.
@@ -88,7 +87,6 @@ This situation is called split brain.
 ##### Statement-based replication
 
 The leader logs every write request(statement) that it executes and sends that statement log to its followers.
-There are various ways in which this approach to replication can break down.
 
 - Any statement that calls a nondeterministic function is likely to generate a different value on each replica.
 - If statements use an autoincrementing column, or if they depend on the existing data in the database, they must be executed in exactly the same order on each replica, or else they have different effects.
@@ -115,17 +113,18 @@ An alternative is to use features that are available in many relational database
 
 ### Problems with Replication Lag
 
-The read-scaling architecture approach only realistically works with asynchronous replication-if you tried to synchronously replicate to all followers, a single node failure or network outage would make the entire system unavailable for writing.
+The read-scaling architecture approach only realistically works with asynchronous replication.
+If you tried to synchronously replicate to all followers, a single node failure or network outage would make the entire system unavailable for writing.
 Unfortunately, if an application reads from an asynchronous follower, it may see outdated information if the follower has fallen behind.
-This effect is known as ***eventual consistency***.
-The delay between a rite happening on the leader and being reflected on a follower is called ***replication lag***.
+This effect is known as **eventual consistency**.
+The delay between a write happening on the leader and being reflected on a follower is called **replication lag**.
 
 #### Reading Your Own Writes
 
-***Read-after-write consistency*** is a guarantee that if the use reload the page, they will always see any updates they submitted themselves.
-To implement read-after-write consistency, You have some way of knowing whether something might have been modified, without actually querying it: authorization, last update time or timestamp.
+**Read-after-write consistency** is a guarantee that if the use reload the page, they will always see any updates they submitted themselves.
+To implement read-after-write consistency, You have some way of knowing whether something might have been modified, without actually querying it.
 Another complication arises when the same user is accessing your service from multiple devices.
-In this case you may want to provide ***cross-device read-after consistency***.
+In this case you may want to provide **cross-device read-after consistency**.
 
 - Metadata will need to be centralized for approaches that require remembering the timestamp of the user's last update.
 - There is no guarantee that connections from different devices will be routed to the same datacenter.
@@ -150,7 +149,7 @@ sequenceDiagram
 
 #### Monotonic Reads
 
-You may see an old value; ***monotonic reads*** only means that if one user makes several reads in sequence, they will not see time go backward.
+**Monotonic reads** means that if one user makes several reads in sequence, they will not see time go backward.
 It's a lesser guarantee than strong consistency, but a stronger guarantee than eventual consistency.
 
 ```mermaid
@@ -178,42 +177,54 @@ sequenceDiagram
 
 #### Consistent Prefix Reads
 
-![violation_causality](./violation_causality.png)
-
-Preventing this kind of anomaly requires another type of guarantee: ***consistent prefix reads***.
-This guarantee says that if a sequence of writes happens in a certain order, then anyone reading those writes will see them appear in the same order.
+**Consistent prefix reads** is a guarantee that if a sequence of writes happens in a certain order, then anyone reading those writes will see them appear in the same order.
 One solution is to make sure that any writes that are causally related to each other are written to the same partition.
+
+![violation_causality](./images/violation_causality.png)
 
 #### Solution for Replication Lag
 
 It would be better if application developers didn't have to worry about subtle replication issues and could just trust their databases to "do the right thing."
-This is why ***transaction*** exist: they are a way for a database to provide stronger guarantees so that the application can be simpler.
+This is why **transaction** exist: they are a way for a database to provide stronger guarantees so that the application can be simpler.
 
 ### Multi-Leader Replication
 
 A natural extension of the leader-based replication model is to allow more than one node to accept writes.
 Replication still happens in the same way: each node that processes a write must forward that data change to all the other nodes.
-We call this a ***multi-leader*** configuration(also known as master-master or active/active replication).
+We call this a **multi-leader** configuration(also known as master-master or active/active replication).
+
+#### Use Case for Multi-Leader Replication
+
+- Multi-datacenter operation
+- Clients with offline operation
+- Collaborative editing
 
 #### Handling Write Conflicts
 
 The biggest problem with multi-leader replication is that write conflicts can occur, which means that conflict resolution is required.
 
-- Synchronous versus asynchronous conflict detection  
-  By making the conflict detection synchronous, you would lose the main advantage of multi-leader replication: allowing each replica to accept writes independently.
-- Conflict avoidance  
-  The simplest strategy for dealing with conflicts is to avoid them.
-  Since many implementations of multi-leader replication handle conflicts quite poorly, avoiding conflict is a frequently recommended approach.
-- Converging toward a consistent state  
-  If each replica simply applied writes in the order that it saw the writes, the database would end up in an inconsistent state.
-  If a timestamp is used, this technique is known as *last write wins*.
-- Custom conflict resolution
-  - On write  
-    As soon as the database system detects a conflict in the log of replicated changes, it calls the conflict handler.
-    It runs in a background process.
-  - On read  
-    When a conflict is detected, all the conflicting write are stored.
-    The next time the data is read, these versions of the data are returned to the application.
+##### Synchronous versus asynchronous conflict detection
+
+By making the conflict detection synchronous, you would lose the main advantage of multi-leader replication: allowing each replica to accept writes independently.
+
+##### Conflict avoidance
+
+The simplest strategy for dealing with conflicts is to avoid them.
+Since many implementations of multi-leader replication handle conflicts quite poorly, avoiding conflict is a frequently recommended approach.
+
+##### Converging toward a consistent state
+
+If each replica simply applied writes in the order that it saw the writes, the database would end up in an inconsistent state.
+If a timestamp is used, this technique is known as last write wins.
+
+##### Custom conflict resolution
+
+- On write  
+As soon as the database system detects a conflict in the log of replicated changes, it calls the conflict handler.
+It runs in a background process.
+- On read  
+When a conflict is detected, all the conflicting write are stored.
+The next time the data is read, these versions of the data are returned to the application.
 
 #### Multi-Leader Replication Topologies
 
@@ -270,7 +281,7 @@ sequenceDiagram
 ##### Read repair and anti-entropy
 
 - Read repair  
-  The client detect a stale value and writes the newer values back to that replica
+  The client detect a stale value and writes the newer values back to that replica.
   This approach works well for values that are frequently read.
 - Anti-entropy process  
   Some datastores have a background process that constantly looks for differences in the data between replicas and copies any missing data from one replica to another.  
@@ -285,7 +296,7 @@ Reads and writes that obey these r and w values are called *quorum* reads and wr
 
 - If sloppy quorum is used, the w writes may end up on different nodes than the r reads.
 - If two writes occur concurrently, it is not clear which one happened first.
-- If a write happens concurrently with a read, it's undetermined whether the read returnㄴ the old or the new value.
+- If a write happens concurrently with a read, it's undetermined whether the read return the old or the new value.
 - If a write succeeded on some replicas but failed on others, and overall succeeded on fewer than w replicas, it is not roll backed on the replicas where it succeeded.
 - If a node carrying a new value fails, and its data is restored from a replica carrying an old value.
 
@@ -324,7 +335,7 @@ sequenceDiagram
 ##### Last write win
 
 We can attach a timestamp to each write, pick the biggest timestamp as the most "recent," and discard any writes with an earlier timestamp.
-This conflict resolution algorithm, called last write wins (LWW).
+This conflict resolution algorithm, called **last write wins** (LWW).
 LWW achieves the goal of eventual convergence, but at the cost of durability.
 
 ##### The "happens-before" relationship and concurrency
@@ -343,7 +354,7 @@ If you make a write without including a version number, it is concurrent with al
 
 ##### Version vectors
 
-The collection of version numbers from all the replicas is called a version vector
+The collection of version numbers from all the replicas is called a version vector.
 
 ## 6. Partitioning
 
@@ -355,6 +366,7 @@ Thus, a large dataset can be distributed across many disks, and the query load c
 ### Partitioning and Replication
 
 Partitioning is usually combined with replication so that copies of each partition are stored on multiple nodes.
+Each node may be the leader for some partitions and a follower for other partitions.
 
 ```mermaid
 ---
@@ -382,13 +394,15 @@ flowchart
 ### Partitioning of Key-Value Data
 
 Our goal with partitioning is to spread the data and the query load evenly across nodes.
-If the partitioning is unfair, so that some partitions have more data or queries than others, we call it skewed.
-A partition with disproportionately high load is called a hot spot.
+If the partitioning is unfair, so that some partitions have more data or queries than others, we call it **skewed**.
+A partition with disproportionately high load is called a **hot spot**.
 
 #### Partitioning by Key Range
 
 One way of partitioning is to assign a continuous range of keys to each partition.
 The ranges of keys are not necessarily evenly spread, because your data may not be evenly distributed.
+
+![partitioning by key](./images/partitioning_by_key.png)
 
 Within each partition, we can keep keys in sorted order.
 This has the advantage that range scans are easy, and you can treat the keys as a concatenated index in order to fetch several related records in one query.
@@ -401,10 +415,13 @@ To avoid writing time based key data on the same partition, you could prefix eac
 A good hash function takes skewed data and makes it uniformly distributed.
 Once you have a suitable hash function for keys, you can assign each partition for a range of hashes, and every key whose hash falls within a partition's range will be stored in that partition.
 
+![partitioning by hash](./images/partitioning_by_hash.png)
+
+This technique is good at distributing keys fairly among the partitions.
+The partition boundaries can be evenly spaced, or they can be chosen pseudorandomly (in which case the technique is sometimes known as **consistent hashing**).
+
 Unfortunately by using the hash of the key for partitioning we lose a nice property of key-range partitioning.
 Keys that were nice adjacent are now scattered across all the partitions, so their sort order is lost.
-
-##### Consistent Hashing
 
 #### Skewed Workloads and Relieving Hot Spots
 
@@ -419,11 +436,7 @@ For example, if one key is known to be very hot, a simple technique is to add a 
 A document index is also known as a local index.
 In this approach, Each partition maintains its own secondary indexes, covering only the documents in that partition.
 
-However, Reading from a document-partitioned index requires care: you need to send the query to all partitions, and combine all the results you get back.
-This approach to querying a partitioned database is sometimes known as scatter/gather, and it can make read queries on secondary indexes quire expensive.
-Even if you query the partitions in parallel, scatter/gather is prone to tail latency amplification.
-
-![secondary index by document](./secondary_index_by_document.png)
+![secondary index by document](./images/secondary_index_by_document.png)
 
 #### Partitioning Secondary Indexes by Term
 
@@ -433,10 +446,7 @@ A global index must also be partitioned, but it can be partitioned differently f
 Red cars from all partitions appear under color:red in the index: but the index is partitioned so that colors starting with the letters a to r appear in partition 0 and colors with s to z appear in partition 1.
 We call this kind of index term-partitioned, because the term we're looking for determines the partition of the index.
 
-The advantage of a global index over a document-partitioned index is that it can make reads more efficient: rather than doing scatter/gather over all partitions, a client only needs to make a request to the partition containing the term that it wants.
-However, the downside of a global index is that writes are slower and more complicated, because a write to a single document may now affect multiple partitions of the index.
-
-![secondary index by term](./secondary_index_by_term.png)
+![secondary index by term](./images/secondary_index_by_term.png)
 
 ### Rebalancing Partitions
 
@@ -511,9 +521,9 @@ A third option is to make the number of partitions proportional to the number of
 2. Send all requests from clients to a routing tier first, which determines the node that should handle each request and forwards it accordingly.
 3. Require that clients be aware of the partitioning and the assignment of partitions to nodes.
 
-![routing_request](./routing_request.png)
+![routing_request](./images/routing_request.png)
 
-Many distributed data systems rely on a separate coordination service such as Zoo-Keeper to keep track of this cluster metadata.
+Many distributed data systems rely on a separate coordination service such as ZooKeeper to keep track of this cluster metadata.
 Each node registers itself in ZooKeeper and ZooKeeper maintains the authoritative mappings of partitions to nodes.
 Other actors, such as the routing tier or the partitioning-aware client, can subscribe to this information in ZooKeeper.
 Whenever a partition changes ownership, or a node is added or removed, ZooKeeper notifies the routing tier so that it can keep its routing information up to date.
@@ -544,8 +554,6 @@ The safety guarantees provided by transactions are often described by the well k
 ##### Atomicity  
 
 In multi-threaded programming, if one thread executes an atomic operation, that means there is no way that another thread could see the half-finished result of the operation.
-The system can only be in the state it was before the operation or after the operation, not something in between.
-
 In the context of ACID, the ability to abort a transaction on error and have all writes from that transaction discarded is the defining feature of ACID atomicity.
 
 ##### Consistency
@@ -574,11 +582,10 @@ In practice, there is no one technique that can provide absolute guarantees.
 
 Although retrying an aborted transaction is a simple and effective error handling mechanism, it isn't perfect.
 
-- If the transaction actually succeeded, but the network failed while the server tried to acknowledge the successful commit to the client, then retrying the transaction causes it to be performed twice-unless you have an additional application-level deduplication mechanism in place.
+- If the transaction actually succeeded, but the network failed while the server tried to acknowledge the successful commit to the client, then retrying the transaction causes it to be performed twice.
 - If the error is due to overload, retrying the transaction will make the problem worse, not better.
-To avoid such feedback cycles, you can limit the number of retries, use exponential back off, and handle overload-related errors differently from other errors.
-- It is only worth after transient errors(for example due to deadlock, isolation violation, temporary network interruptions, and failover); after permanent error(e.g., constraint violation) a retry would be pointless.
-- If the transaction also has side effects outside of the database, those side effects may happen even if the transaction is aborted. If you want to make sure that several different systems either commit or abort together, two-phase commit can help.
+- It is only worth after transient errors; after permanent error a retry would be pointless.
+- If the transaction also has side effects outside of the database, those side effects may happen even if the transaction is aborted.
 
 ### Weak Isolation Levels
 
@@ -587,17 +594,13 @@ It's therefore common for systems to use weaker levels of isolation, which prote
 
 #### Read Committed
 
+Read committed makes two guarantees:
+
 1. When reading from the database, you will only see data that has been committed (no dirty read).
 2. When writing to the database, you will only overwrite data that has been committed (no dirty write).
 
-Databases prevent dirty writes by using row-level locks: when a transaction wants to modify a particular object, it must first acquire a lock on that object.
-It must then hold that lock until the transaction is committed or aborted.
-Only one transaction can hold the lock for any given object; if another transaction wants to write to the same object, it must wait until the first transaction is committed or aborted before it can acquire the lock and continue.
-This locking is done automatically by databases in read committed mode.
-
-Most databases prevent dirty reads using the approach illustrated below: for every object that is written, the database remembers both the old committed value and the new value set by the transaction that currently holds the write lock.
-While the transaction is ongoing, any other transactions that read the object are simply given the old value.
-Only when the new value is committed do transactions switch over to reading the new value.
+Databases prevent dirty writes by using row-level locks. Most databases prevent dirty reads using the approach illustrated below:
+for every object that is written, the database remembers both the old committed value and the new value set by the transaction that currently holds the write lock.
 
 ```mermaid
 ---
@@ -645,7 +648,7 @@ sequenceDiagram
 ```
 
 This anomaly is called a nonrepeatable read or read skew.
-Snapshot isolation  is the most common solution to this problem. The idea is that each transaction reads from a consistent snapshot of the database-that is,the transaction sees all the data that was committed in the database at the start of the transaction.
+Snapshot isolation idea is that each transaction reads from a consistent snapshot of the database-the transaction sees all the data that was committed in the database at the start of the transaction.
 
 From a performance point of view, a key principle of snapshot isolation is reader never block writers, and writes never block readers.
 This allows a database to handle long-running read queries on a consistent snapshot at the same time as processing writes, without any lock between the two.
@@ -667,9 +670,7 @@ UPDATE counters SET value = value + 1 where key = 'foo';
 ```
 
 Atomic operations are usually implemented by taking an exclusive lock on the object when it is read so that no other transaction can read it until the update has been applied.
-This technique is sometimes known as cursor stability.
-Another option is to simply force all atomic operations to be executed on a single thread.
-
+Not all writes can easily be expressed in terms of atomic operations-but in situations where atomic operations can be used, they are usually best choice.
 Unfortunately object-relational mapping frameworks make it easy to accidentally write code that performs unsafe read-modify-write cycles instead of using atomic operations provided by the database.
 
 ##### Explicit locking
@@ -692,7 +693,6 @@ It's easy to forget to add a necessary lock somewhere in the code, and thus intr
 
 Atomic operation and locks are ways of preventing lost updates by forcing the read-modify-write cycles to happen sequentially.
 An alternative is to allow them to execute in parallel and, if the transaction manager detects a lost update, abort the transaction and force it to retry its read-modify-write cycle.
-
 Lost update detection is a great feature, because it doesn't require application code to use any special database features.
 
 ##### Compare-and-set
@@ -701,7 +701,7 @@ In databases that don't provide transactions, you sometimes find an atomic compa
 The purpose of this operation is to avoid lost updates by allowing an update to happen only if the value has not changed since you last read it.
 
 ```SQL
-UPDATE wiki_page SET content = 'new content' WHERE id = 1234 and  content = 'old content'
+UPDATE wiki_page SET content = 'new content' WHERE id = 1234 and content = 'old content'
 ```
 
 ##### Conflict resolution and replication
@@ -709,17 +709,6 @@ UPDATE wiki_page SET content = 'new content' WHERE id = 1234 and  content = 'old
 A common approach in such replicated databases is to allow concurrent writes to create several conflicting versions of a value, and to use application code or special data structures to resolve and merge these versions after the fact.
 
 #### Write Skew and Phantoms
-
-##### Examples of write skew
-
-- Manage doctors on-call shifts  
-It absolutely must have at least one doctor on call.
-- Meeting room booking system  
-It wants to enforce that there cannot be two bookings for the same meeting room at the same time.
-- Multiplayer game  
-It prevents players from moving two different figures to the same position on the board or potentially making some other move that violates the rules of the game.
-- Claiming a username  
-User has a unique name
 
 ##### Characterizing write skew
 
@@ -733,15 +722,6 @@ This effect, where a write in one transaction changes the result of a search que
 Snapshot isolation avoids phantom in read-only queries.
 But in read-write transactions, phantom can lead to particularly tricky cases of write skew.
 
-##### Materializing conflicts
-
-If the problem of phantom is that there is no object to which we can attach the locks, perhaps we can artificially introduce a lock object into the database
-
-This approach is called materializing conflicts, because it takes a phantom and turns it into a lock conflict on a concrete set of rows that exist in the database.
-Unfortunately, it can be hard and error-prone to figure out how to materialize conflicts, and it's ugly to let a concurrency control mechanism leak into the application data model.
-For those reasons, materializing conflicts should be considered a last resort if no alternative is possible.
-A serializable isolation level is much preferable in most cases.
-
 ### Serializability
 
 Serializable isolation is usually regarded as the strongest isolation level.
@@ -753,23 +733,26 @@ The simplest way of avoiding concurrency problems is to remove the concurrency e
 A system designed for single-threaded execution can sometimes perform better than a system that supports concurrency, because it can avoid the coordination overhead of locking.
 However, its throughput is limited to that of a single CPU core.
 
-- Every transaction must be small and fast, because it takes only one slow transaction to stall all transaction processing.
-- It is limited to use cases where the active dataset can fit in memory. Rarely accessed data could potentially be moved to disk, but if it needed to be accessed in a single-thread transaction, the system would get very slow.
-- Write throughput must be slow enough to be handled on a single CPU core, or else transactions need to be partitioned without requiring cross-partition coordination.
+- Every transaction must be small and fast.
+- It is limited to use cases where the active dataset can fit in memory.
+- Write throughput must be low enough to be handled on a single CPU core, or else transactions need to be partitioned without requiring cross-partition coordination.
 - Cross-partition transactions are possible, but there is a hard limit to the extent to which they can be used.
 
 #### Two-Phase Locking (2PL)
 
-Two phase locking is similar, but makes the lock requirements much stronger.
+**Two phase locking** is similar, but makes the lock requirements much stronger.
 Several transactions are allowed to concurrently read the same object as long as nobody is writing to it.
 But as soon as anyone wants to write an object, exclusive access is required.
-In 2PL, writers don't just block other writers; they also block readers and vice versa.
+In 2PL, they block readers and vice versa.
 The lock can either be in shared mode or in exclusive mode.
 
-The big downside of two-phase locking is performance: transaction throughput and response times of queries are significantly worse under two-phase locking than under weak isolation.
+The big downside of two-phase locking is performance.
 This is partly due to the overhead of acquiring and releasing all those locks, but more importantly due to reduced concurrency.
 
-Most databases with 2PL actually implement index-range locking, which is a simplified approximation of predicate locking.
+##### Index-range locks
+
+Most databases with 2PL actually implement **index-range locking** (also known as next-key locking), which is a simplified approximation of predicate locking.
+If there is no suitable index where range lock can be attached, the database can fall back to a shared lock on the entire table.
 
 #### Serializable Snapshot Isolation (SSI)
 
@@ -779,9 +762,9 @@ It is like mutual exclusion, which is used to protect data structures in multi-t
 Serial execution is pessimistic to the extreme.
 We compensate for the pessimism by making each transaction very fast to execute, so it only needs to hold the "lock" for a short time.
 
-Serializable snapshot is an optimistic concurrency control technique.
+**Serializable snapshot** is an optimistic concurrency control technique.
 Optimistic in this context means that instead of blocking if something potentially dangerous happens, transactions continue anyway, in the hope that everything will turn out all right.
-When a transaction wants to commit, the database checks whether anything had happened (i.e., whether isolation was violated); if so, the transaction is aborted and to be retried.
+When a transaction wants to commit, the database checks whether anything had happened; if so, the transaction is aborted and to be retried.
 
 It performs badly if there is high contention, as this leads to a high proportion of transactions needing to abort.
 However, if there is enough spare capacity, optimistic concurrency control techniques tend to perform better than pessimistic ones.
@@ -795,7 +778,7 @@ In other words, there may be a causal dependency between the queries and the wri
 
 ##### Detecting writes that affect prior reads
 
-![detecting writes that affect prior reads](./detecting_writes.png)
+![detecting writes that affect prior reads](./images/detecting_writes.png)
 
 ##### Performance of serializable snapshot isolation
 
