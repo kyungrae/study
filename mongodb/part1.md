@@ -257,6 +257,10 @@ db.blog.posts.findOne(criteria, {comments:{$slice:[23,10]}})
 
 // $elemMatch: compare both clauses with a single array element
 db.test.find({x: {$elemMatch: {$gt: 10, $lt:20}}})
+[
+  { _id: ObjectId('678f737788fe250acdfc0421'), x: [ 5, 15 ] },
+  { _id: ObjectId('678f737e88fe250acdfc0422'), x: [ 12, 15 ] }
+]
 ```
 
 #### Querying Embedded Documents

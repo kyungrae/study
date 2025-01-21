@@ -91,7 +91,7 @@ db.users.createIndex(
 
 MongoDB has two types of geospatial indexes: 2dsphere and 2d.
 2dsphere indexes work with spherical geometries that model the surface of the earth based on the WGS84 datum.
-This datum models the surface of the earth as an ablate spheroid, meaning that there is some flattening at the poles.
+This datum models the surface of the earth as an oblate spheroid, meaning that there is some flattening at the poles.
 
 2dsphere allows you to specify geometries for points, lines, and polygons in the GeoJSON format.
 A point is given by a two-element array, representing [longitude, latitude].
@@ -110,7 +110,8 @@ The field that we are naming, "loc" in this example, can be called anything, but
 You can create a geospatial index using the "2dsphere" type with createIndex:
 
 ```js
-db.collections.createIndex({"loc": "2dsphere"})
+db.collection.createIndex({"loc": "2dsphere"})
+db.collection.createIndex({"tags": 1, "location": "2dsphere"})
 ```
 
 #### Type of Geospatial Queries
@@ -132,7 +133,7 @@ var eastVillage = {
 // Find all documents that had a point in an area.
 db.openStreetMap.find({"loc": { "$geoIntersects": {"$geometry": eastVillage}}})
 
-// Query for that things that are completely contained in an area.
+// Query for things that are completely contained in an area.
 db.openStreetMap.find({"loc": { "$geoWithin": {"$geometry": eastVillage}}})
 
 // Query for nearby locations.
@@ -162,13 +163,13 @@ db.restaurants.find({"location": {"$geoWithin": {"$geometry":neighborhood.geomet
 db.restaurants.find({
   "location": {
     "$geoWithin": {
-      "$centerSphere": [[-73.93414657, 40.83302903], 5/3963.2]
+      "$centerSphere": [[-73.93414657, 40.83302903], 500/6378.1] // 500 kilometers
     }
   }
 })
 
 
-// Find sorted order restaurants within a km distance.
+// Find sorted order restaurants within a distance.
 db.restaurants.find({
   "location": {
     "$nearSphere": {
@@ -176,16 +177,10 @@ db.restaurants.find({
         "type": "Point",
         "coordinates":[-73.93414657,40.82302903]
       },
-      "$maxDistance": 1000
+      "$maxDistance": 1000 // 1,000 meters
     }
   }
 })
-```
-
-#### Compound Goespatial Indexes
-
-```js
-db.openStreetMap.createIndex({"tags": 1, "location": "2dsphere"})
 ```
 
 #### 2d Indexes
@@ -195,7 +190,7 @@ db.hyrule.createIndex({"tile": "2d"})
 ```
 
 2d indexes assume a perfectly flat surface.
-Document should use a two-element array fro their "2d" indexed field
+Document should use a two-element array for their "2d" indexed field.
 Do not use a 2d index if you plan to store GeoJSON data-they can only index points.
 
 ```json
@@ -213,11 +208,95 @@ db.hyrule.find({tile: {$geoWithin: {$box:[[0,0],[3,6],[6,0]]}}})
 
 ### Indexes for Full Text Search
 
+text indexes in MongoDB support full-text search requirements.
+
+#### Creating a Text Index
+
+```js
+db.articles.createIndex({"title": "text", "body": "text"})
+db.articles.createIndex({"title": "text", "body": "text"}, {"weights":{"title":3, "body":2}})
+```
+
+#### Text Search
+
+```js
+// "impact" or "crater" or "lunar"
+db.articles.find({"$text": {"$search": "impact crater lunar"}})
+// "impact crater" and "lunar"
+db.articles.find({"$text": {"$search": "\"impact crater\" lunar"}})
+
+// sort score
+db.articles.find(
+  {"$text": {"$search": "\"impact crater\" lunar"}},
+  {title: 1, score: {$meta:"textScore"}}
+).sort({score:{$meta:"textScore"}}).limit(10)
+```
+
 ### Capped Collections
+
+Capped collections behave like circular queues: if we're out of space, the oldest document will be deleted, and the new one will take its place.
+
+```js
+db.createCollection("my_collection", {"capped": true, "size": 100000, "max":100})
+```
 
 ### Time-To-Live Indexes
 
-### Sorting Files with GridFS
+TTL indexes allow you to set a timeout for each document.
+When a document reaches a preconfigured age, it will be deleted.
+
+```js
+db.session.createIndex({"lastUpdated": 1}, {"expireAfterSeconds": 60*60*24})
+```
+
+### Storing Files with GridFS
+
+GridFS is a mechanism for storing large binary files in MongoDB.
+GridFS is generally best when you have large files you'll be accessing in sequential fashion that won't be changing much.
+
+```sh
+$ echo "Hello, world" > foo.txt
+$ mongofiles put foo.txt
+2025-01-21T08:25:20.751+0000    connected to: mongodb://localhost/
+2025-01-21T08:25:20.751+0000    adding gridFile: foo.txt
+2025-01-21T08:25:20.785+0000    added gridFile: foo.txt
+$ mongofiles admin list
+2025-01-21T08:25:33.749+0000    connected to: mongodb://localhost/
+foo.txt 13
+$ mongofiles admin get foo.txt
+2025-01-21T08:25:53.815+0000    connected to: mongodb://localhost/
+2025-01-21T08:25:53.819+0000    finished writing to foo.txt
+```
+
+GridFS is a lightweight specification for storing files that is built on top of normal MongoDB documents.
+The MongoDB server actually does almost nothing to "special-case" the handling of GridFS requests; all the work is handled by the client-side drivers and tools
+
+The basic idea behind GridFS is that we can store large files by splitting them up into chunks and storing each chunk as a separate document.
+
+The chunks for GridFS are stored in their own collection (e.g., fs.chunks).
+
+```js
+{
+  _id: ObjectId('678f59f0378a252370e81db9'),
+  files_id: ObjectId('678f59f0378a252370e81db8'), // The "_id" of the file document
+  n: 0, // The chunk's position in the file
+  data: Binary.createFromBase64('SGVsbG8sIHdvcmxkCg==', 0) // The bytes in this chunk of the file
+}
+```
+
+The metadata for each file is stored in a separate collection (e.g., fs.files).
+Each document in the files collection represents a single file in GridFS and can contain any custom meta data that should be associated with that file.
+
+```js
+{
+  _id: ObjectId('678f59f0378a252370e81db8'), // A unique ID for the file
+  length: Long('13'), // The total number of bytes
+  chunkSize: 261120, // The size of each chunk comprising the file, in bytes.
+  uploadDate: ISODate('2025-01-21T08:25:20.784Z'),
+  filename: 'foo.txt',
+  metadata: {}
+}
+```
 
 ## 7. Introduction to the Aggregation Framework
 
