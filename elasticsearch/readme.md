@@ -288,6 +288,20 @@ PUT analyzer_test
 }
 ```
 
+#### 한국어 형태소 분석 analyzer 플러그인 설치
+
+```sh
+bin/elasticsearch-plugin install analysis-nori
+```
+
+```HTTP
+POST _analyze
+{
+  "analyzer": "nori",
+  "text": "우리는 컴퓨터를 다룬다."
+}
+```
+
 ### 3.4 템플릿
 
 템플릿을 사전에 정의해 두면 인덱스 생성 시 사전 정의한 설정대로 인덱스가 생성된다.
@@ -338,14 +352,14 @@ PUT [인덱스 이름]/_doc/[_id]
 // _id 자동 생성
 POST [인덱스 이름]/_doc
 
-// 덮어 씌우기 금지
+// 덮어 씌우기 불가
 PUT [인덱스 이름]/_create/[_id]
 POST [인덱스 이름]/_create/[_id]
 ```
 
 ##### refresh
 
-refresh 매개변수를 지정하면 문서를 색인한 직후에 해당 샤드를 refresh 해서 즉시 검색 가능하게 만들 것인지 엽를 지정할 수 있다.
+refresh 매개변수를 지정하면 문서를 색인한 직후에 해당 샤드를 refresh 해서 즉시 검색 가능하게 만들 것인지 여부를 지정할 수 있다.
 
 | refresh 값 | 동작 방식 |
 |---|---|
@@ -355,7 +369,7 @@ refresh 매개변수를 지정하면 문서를 색인한 직후에 해당 샤드
 
 #### 4.1.2 조회 API
 
-검색과는 다르게 색인이 refresh되지 않은 상태에서도 변경된 내용을 확인할 수 있다.
+검색과는 다르게 색인이 refresh 되지 않은 상태에서도 변경된 내용을 확인할 수 있다.
 
 ```HTTP
 // 메타 데이터 포함
@@ -763,10 +777,10 @@ POST [인덱스 이름]/_search
 }
 ```
 
-##### filter context과 filter context
+##### query context과 filter context
 
 점수를 매기지 않고 단순히 조건을 만족하는지 여부만을 참과 거짓으로 따지는 검색 과정을 filter context라고 한다.
-문서가 주어진 검색 조건을 얼마나 더 잘 만족하는지 유사도 점수를 매기는 검색 과정을 filter context라고 한다.
+문서가 주어진 검색 조건을 얼마나 더 잘 만족하는지 유사도 점수를 매기는 검색 과정을 query context라고 한다.
 
 | | query context | filter context |
 |---|---|---|
@@ -942,7 +956,7 @@ POST _search
     }
   },
   "pit": {
-    "id": "697qAwEca2liYW5hX3NhbXBsZV9kYXRhX2Vjb21tZXJjZRZQaGVZbTNWVVFaS2I3MDBneEVlcnp3ABZoUUYyRE5FZVNBcVVXeFY5T3pTS0RnAAAAAAAAAQdpFjk0aG1yTkt0VDBlVVJ1Z05JVGtlMEEAARZQaGVZbTNWVVFaS2I3MDBneEVlcnp3AAA=",
+    "id": "$id",
     "keep_alive": "1m"
   }, 
   "sort": [
@@ -962,7 +976,7 @@ POST _search
     }
   },
   "pit": {
-    "id": "697qAwEca2liYW5hX3NhbXBsZV9kYXRhX2Vjb21tZXJjZRZQaGVZbTNWVVFaS2I3MDBneEVlcnp3ABZoUUYyRE5FZVNBcVVXeFY5T3pTS0RnAAAAAAAAAQdpFjk0aG1yTkt0VDBlVVJ1Z05JVGtlMEEAARZQaGVZbTNWVVFaS2I3MDBneEVlcnp3AAA=",
+    "id": "$id",
     "keep_alive": "1m"
   },
   "search_after": [1736627990000, 2438],
@@ -974,4 +988,292 @@ POST _search
 
 ### 4.4 집계
 
-### 4.5 서비스 코드에서 엘라스틱서치 클라이언트 이용
+문서에 대한 산술적인 연산을 수행한다.
+
+#### 기본 집계
+
+```HTTP
+GET kibana_sample_data_ecommerce/_search
+{
+  "size": 0,
+  "query": {
+    "term": {
+      "currency": "EUR"
+    }
+  },
+  "aggs": {
+    "max-sum-aggregation-name": {
+      "sum": {
+        "field": "taxless-total-price"
+      } 
+    }
+  }
+}
+
+GET kibana_sample_data_ecommerce/_search
+{
+  "size": 0,
+  "query": {
+    "term": {
+      "currency": {
+        "value": "EUR"
+      }
+    }
+  },
+  "aggs": {
+    "my-stats-aggregation-name": {
+      "stats": {
+        "field": "taxless_total_price"
+      }
+    }
+  }
+}
+```
+
+집계 요청의 상세는 aggs 밑에 기술한다. 요청 한 번에 여러 집계를 요청할 수도 있기 때문에 결과에서 이들을 구분할 수 있도록 집계에 이름을 붙여야 한다.
+집계 작업은 검색 쿼리에 매칭된 모든 문서에 대해 수행된다. 이를 염두에 두지 않으면 과도한 양의 데이터를 대상으로 집계를 수행할 수 있다.
+
+size를 0으로 지정하면 각 샤드에서 수행한 검색 결과에서 상위 문서의 내용을 수집해 모을 필요가 없고 점수를 계산하는 과정도 수행하지 않는다.
+이로 인해 성능에 이득이 있다. 캐시의 도움도 더 많이 받을 수 있다.
+
+#### 버킷 집계
+
+버킷 집계는 문서를 특정 기준으로 쪼개어 여러 부분 집합으로 나눈다.
+
+##### range 집계
+
+```HTTP
+GET kibana_sample_data_flights/_search
+{
+  "size": 1,
+  "query": {
+    "match_all": {}
+  },
+  "aggs": {
+    "distance-kilometers-range": {
+      "range": {
+        "field": "DistanceKilometers",
+        "ranges": [
+          {
+            "to": 5000
+          },
+          {
+            "from": 5000,
+            "to": 10000
+          },
+          {
+            "from": 10000
+          }
+        ]
+      },
+      "aggs": {
+        "average-ticket-price": {
+          "avg": {
+            "field": "AvgTicketPrice"
+          }
+        }
+      }
+    }
+  }
+}
+
+GET kibana_sample_data_ecommerce/_search
+{
+  "size": 0,
+  "query": {
+    "match_all": {}
+  },
+  "aggs": {
+    "date-ranges-aggs": {
+      "date_range": {
+        "field": "order_date",
+        "ranges": [
+          {
+            "to": "now-10d/d"
+          },
+          {
+            "from": "now-10d/d",
+            "to": "now"
+          },
+          {
+            "from": "now"
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+##### histogram 집계
+
+```HTTP
+GET kibana_sample_data_flights/_search
+{
+  "size": 0,
+  "query": {
+    "match_all": {}
+  }, 
+  "aggs": {
+    "my-histogram": {
+      "histogram": {
+        "field": "DistanceKilometers",
+        "interval": 1000,
+        "offset": 50
+      }
+    }
+  }
+}
+
+GET kibana_sample_data_ecommerce/_search
+{
+  "size": 0,
+  "query": {
+    "match_all": {}
+  }, 
+  "aggs": {
+    "my-date-histogram": {
+      "date_histogram": {
+        "field": "order_date",
+        "calendar_interval": "day"
+      }
+    }
+  }
+}
+```
+
+##### terms 집계
+
+지정한 필드에 대해 가장 빈도수가 높은 term 순서대로 버킷을 생성한다.
+
+```HTTP
+GET kibana_sample_data_logs/_search
+{
+  "size": 0,
+  "query": {
+    "match_all": {}
+  },
+  "aggs": {
+    "my-terms-aggs": {
+      "terms": {
+        "field": "host.keyword",
+        "size": 10
+      }
+    }
+  }
+}
+```
+
+##### composite 집계
+
+sources로 지정된 하위 집계의 버킷 전부를 페이지네이션을 이용해서 효율적으로 순회하는 집계다.
+
+```HTTP
+GET kibana_sample_data_logs/_search
+{
+  "size":0,
+  "query": {
+    "match_all": {}
+  },
+  "aggs": {
+    "composite-aggs": {
+      "composite": {
+        "size": 100, 
+        "sources": [
+          {
+            "terms-aggs": {
+              "terms": {
+                "field": "host.keyword"
+              }
+            }
+          },
+          {
+            "date-histogram-aggs": {
+              "date_histogram": {
+                "field": "@timestamp",
+                "calendar_interval": "day"
+              }
+            }
+          }
+        ],
+        "after": {
+          "terms-aggs": "cdn.elastic-elastic-elastic.org",
+          "date-histogram-aggs": 1738368000000
+        }
+      }
+    }
+  }
+}
+```
+
+#### 파이프라인 집계
+
+파이프라인 집계는 문서나 필드의 내용이 아니라 다른 집계 결과를 집계 대상으로 지정한다.
+즉 다른 집계의 결과를 입력값으로 가져와서 작업을 수행한다.
+주로 buckets_path라는 인자를 통해 다른 집계의 결과를 가져오며, 이 buckets_path는 상대 경로로 지정한다.
+
+##### cumulative_sum 집계
+
+```HTTP
+GET kibana_sample_data_ecommerce/_search
+{
+  "size": 0,
+  "query": {
+    "match_all": {}
+  },
+  "aggs": {
+    "daily-timestamp-bucket": {
+      "date_histogram": {
+        "field": "order_date",
+        "calendar_interval": "day"
+      },
+      "aggs": {
+        "daily-total-quantity-average": {
+          "avg": {
+            "field": "total_quantity"
+          }
+        },
+        "pipeline-sum": {
+          "cumulative_sum": {
+            "buckets_path": "daily-total-quantity-average"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+##### max_bucket 집계
+
+```HTTP
+GET kibana_sample_data_ecommerce/_search
+{
+  "size":0,
+  "query": {
+    "match_all": {}
+  },
+  "aggs": {
+    "daily-timestamp-bucket": {
+      "date_histogram": {
+        "field": "order_date",
+        "calendar_interval": "day"
+      },
+      "aggs": {
+        "daily-total-quantity-average": {
+          "avg": {
+            "field": "total_quantity"
+          }
+        }
+      }
+    },
+    "max-total-quantity": {
+      "max_bucket": {
+        "buckets_path": "daily-timestamp-bucket>daily-total-quantity-average"
+      }
+    }
+  }
+}
+```
+
+## 5 서비스 환경에 클러스터 구성
