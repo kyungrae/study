@@ -566,7 +566,7 @@ However, this idea of consistency depends on the application's notion of invaria
 ##### Isolation
 
 Concurrently running transactions shouldn't interfere with each other.
-For Example, if one transaction makes several writes, then another transaction should see either all or none of those writes, but not subset.
+For example, if one transaction makes several writes, then another transaction should see either all or none of those writes, but not subset.
 
 ##### Durability
 
@@ -787,4 +787,132 @@ Compared to two-phase locking, the big advantage of serializable snapshot isolat
 
 ## 8. The Trouble with Distributed Systems
 
+### Faults and Partial Failures
+
+In a distributed system, there may well be some parts of the system that are broken in some unpredictable way, even though other parts of the system are working fine.
+This is known as a **partial failure**.
+The difficulty is that partial failures are nondeterministic.
+
+### Unreliable Networks
+
+The internet and most internal networks in datacenter are asynchronous packet networks.
+In this kind of network, one node can send a message (a packet) to another node, but the network gives no guarantees as to when it will arrive, or whether it will arrive at all.
+
+The usual way of handling unbounded delay is a timeout: after some time you give up waiting and assume that the response is not going to arrive.
+
+#### Latency and Resource Utilization
+
+Latency guarantees are achievable in certain environments, if resources are statically partitioned (e.g, dedicated hardware and exclusive bandwidth allocations).
+However, it comes at the cost of reduced utilization--in other words, it is more expensive.
+On the other hand, multi-tenancy with dynamic resource partitioning provides better utilization, so it is cheaper, but it has the downside of variable delays.
+
+### Unreliable Clocks
+
+In a distributed system, time is a tricky business, because communication is not instantaneous: it takes time for a message to travel across the network from one machine to another.
+
+Moreover, each machine on the network has its own clock, which is an actual hardware device: usually a quartz crystal oscillator.
+These devices are not perfectly accurate, so each machine has its own notion of time, which may be slightly faster or slower than on other machines.
+It is possible to synchronize clocks to some degree: the most commonly used mechanism is the Network Time Protocol (NTP), which allows the computer clock to be adjusted according to the time reported by a group of servers.
+
+#### Monotonic Versus Time-of-Day Clocks
+
+- Time-of-day clocks  
+Time-of-day clocks are usually synchronized with NTP, which means that a timestamp from one machine (ideally) means the same as a timestamp on another machine.
+In particular, if the local clock is too far ahead of the NTP server, it may be forcibly reset and appear to jump back to a previous point in time.
+For example, *clock-gettime(CLOCK_REALTIME)* on Linux and *System.currentTimeMillis()* in Java.
+- Monotonic clocks  
+A monotonic clock is suitable for measuring a duration (time interval), such as a timeout or a service's response time: *clock_gettime(CLOCK_MONOTONIC)* on Linux and *System.nanoTime()* in Java.
+The name comes from the fact they are guaranteed to always move forward.
+
+#### Process Pause
+
+A node in a distributed system must assume that its execution can be paused for a significant length of time at any point.
+During the pause, the rest of the world keeps moving and may even declare the paused node dead because it's not responding.
+Eventually, the paused node may continue running, without even noticing that it was asleep until it checks its clock sometime later.
+
+### Knowledge, Truth, and Lies
+
+#### The Truth Is Defined by the Majority
+
+A distributed system cannot exclusively rely on a single node, because a node may fail at any time, potentially leaving the system stuck and unable to recover.
+Instead, many distributed algorithms rely on a quorum, that is, voting among the nodes: decisions require some minimum number of votes from several nodes in order to reduce the dependence on any one particular node.
+
+Most commonly, the quorum is an absolute majority of more than half the node. A majority quorum allows the system to continue working if individual nodes have failed.
+
+##### The leader and the lock
+
+Implementing this in a distributed system requires care: even if a node believes that it is "the chosen one", that doesn't necessarily mean a quorum of nodes agrees!
+A node may have formerly been the leader, but if the other nodes declared it dead in the meantime., it may have been demoted and another leader may have already been elected.
+
+If a node continues acting as the chosen one, even though the majority of nodes have declared it dead, it could cause problems in a system that is not carefully designed.
+
+##### Fencing tokens
+
+We need to ensure that a node that is under a false belief of being "the chosen one" cannot disrupt the rest of the system.
+
+```mermaid
+---
+title: Increasing fencing tokens
+---
+sequenceDiagram
+  participant Lock service
+  actor client1
+  actor client2
+  participant Storage
+
+  client1->>Lock service: get lease
+  Lock service->>client1: ok, token 33
+  activate client1
+  
+  client2->>Lock service: get lease
+  Lock service->>client2: ok, token 34
+  client2->>Storage: write token: 34
+  Storage->>client2: ok
+
+  note left of client1: GC pause
+  deactivate client1
+  client1->>Storage: write token: 33
+  Storage->>client1: reject old token
+```
+
+#### Byzantine Faults
+
+Distributed systems problems become much harder if there is a risk that nodes may "lie"-for example, if a node may claim to have received a particular message when in fact it didn't.
+Such behavior is known as a **Byzantine fault**.
+
+#### System Model and Reality
+
+We define a system model, which is an abstraction that describes what things an algorithm may assume.
+
+With regard to timing assumptions, three system models are in common use:
+
+- Synchronous model  
+The synchronous model assumes bounded network delay, bounded process pauses, and bounded clock error.
+- Partially synchronous model  
+Partial synchrony means that a system behaves like a synchronous system most of the time, but it sometimes exceeds the bounds for network delay, process pauses, and clock drift.
+- Asynchronous model  
+In this model, an algorithm is not allowed to make any timing assumptions, it does not even have a clock. Some algorithms can be designed for the asynchronous model, but it is very restrictive.
+
+With regard to node failure assumptions, three system models are in common use:
+
+- Crash-stop faults
+- Crash-recovery faults
+- Byzantine faults
+
+The partially synchronous model with crash-recovery faults is generally the most useful model.
+
+#### Correctness of an algorithm
+
+To define what it means for an algorithm to be correct, we can describe its properties.
+Properties can be distinguished between two different kinds of properties: **safety** and **liveness** properties.
+Safety is often informally defined as nothing bad happens, and liveness as something good eventually happens.
+
 ## 9. Consistency and Consensus
+
+### Consistncy Guarantees
+
+### Linearizability
+
+### Ordering Guarantees
+
+### Distributed Transactions and Consensus
