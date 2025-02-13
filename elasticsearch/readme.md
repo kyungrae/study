@@ -105,7 +105,21 @@ PUT [인덱스 이름]
     "refresh_interval": "1S"
   },
   "mappings": {
-    "properties": {},
+    "properties": {
+      "createdDate": {
+        "type": "date",
+        "format": "strict_date_time || epoch_millis"
+      },
+      "keywordString": {
+        "type": "keyword"
+      },
+      "longValue": {
+        "type": "long"
+      },
+      "textString": {
+        "type": "text"
+      }
+    }
   }
 }
 ```
@@ -147,6 +161,26 @@ nested 타입은 객체 배열의 각 객체를 내부적으로 별도의 루씬
 nested 타입을 많이 사용할 경우 성능 문제가 발생할 수 있다.
 
 ```HTTP
+PUT nested_test
+{
+  "mappings": {
+    "spec": {
+      "type": "nested",
+      "properties": {
+        "cores": {
+          "type": "long"
+        },
+        "memory": {
+          "type": "long"
+        },
+        "storage": {
+          "type": "long"
+        }
+      }
+    }
+  }
+}
+
 GET nested_test/_search
 {
   "query": {
@@ -162,14 +196,6 @@ GET nested_test/_search
       }
     }
   }
-}
-
-{
-  "spec": [
-    {"cores":12, "memory":128, "storage": 8000},
-    {"cores":6, "memory":64, "storage": 8000},
-    {"cores":6, "memory":32, "storage": 4000}
-  ]
 }
 ```
 
@@ -487,7 +513,8 @@ POST bulk_test/_update_by_query
     "exists": {
       "field": "field1"
     }
-  }
+  },
+  "conflicts": "proceed"
 }
 ```
 
@@ -511,7 +538,7 @@ POST bulk_test/_update_by_query?scroll_size=1000&scroll=1m&requests_per_seconds=
 업데이트 전 먼저 검색을 수행하는 도큐먼트 수
 - scroll  
 검색 조건을 만족한 모든 문서를 대상으로 검색이 처음 수행됐을 당시 상태를 search context에 보존한다.
-search context를 얼마나 보존할 지 지정하는 것이 scroll 설정이다.
+search context를 얼마나 보존할지 지정하는 것이 scroll 설정이다.
 - request_per_second  
 초당 몇 개까지 작업을 수행할 것인지를 지정한다.
 
@@ -531,10 +558,10 @@ GET _tasks/[task id]
 POST _tasks/[task id]/_cancel
 
 // throttling 동적 변경
-POST _update_by_query/hQF2DNEeSAqUWxV9OzSKDg:428971/_rethrottle?requests_per_second=100
+POST _update_by_query/[task id]/_rethrottle?requests_per_second=100
 
 // task 결과 삭제
-DELETE .tasks/_doc/hQF2DNEeSAqUWxV9OzSKDg:428971
+DELETE .tasks/_doc/[task id]
 ```
 
 ##### slicing
@@ -1028,11 +1055,28 @@ GET kibana_sample_data_ecommerce/_search
     }
   }
 }
+
+GET kibana_sample_data_ecommerce/_search
+{
+  "size": 0,
+  "query": {
+    "match_all": {}
+  },
+  "aggs": {
+    "my-cardinality-aggregation-name": {
+      "cardinality": {
+        "field": "customer_id",
+        "precision_threshold": 30000
+      }
+    }
+  }
+}
 ```
 
 집계 요청의 상세는 aggs 밑에 기술한다. 요청 한 번에 여러 집계를 요청할 수도 있기 때문에 결과에서 이들을 구분할 수 있도록 집계에 이름을 붙여야 한다.
 집계 작업은 검색 쿼리에 매칭된 모든 문서에 대해 수행된다. 이를 염두에 두지 않으면 과도한 양의 데이터를 대상으로 집계를 수행할 수 있다.
 
+size 0으로 지정하면 검색에 상위 매칭된 문서가 무엇인지 받아볼 수 없다. 하지만 검색에 매치되는 모든 문서는 집계에 사용된다.
 size를 0으로 지정하면 각 샤드에서 수행한 검색 결과에서 상위 문서의 내용을 수집해 모을 필요가 없고 점수를 계산하는 과정도 수행하지 않는다.
 이로 인해 성능에 이득이 있다. 캐시의 도움도 더 많이 받을 수 있다.
 
@@ -1045,7 +1089,7 @@ size를 0으로 지정하면 각 샤드에서 수행한 검색 결과에서 상�
 ```HTTP
 GET kibana_sample_data_flights/_search
 {
-  "size": 1,
+  "size": 0,
   "query": {
     "match_all": {}
   },
@@ -1196,6 +1240,7 @@ GET kibana_sample_data_logs/_search
             }
           }
         ],
+        // 다음 페이지 조회
         "after": {
           "terms-aggs": "cdn.elastic-elastic-elastic.org",
           "date-histogram-aggs": 1738368000000
@@ -1211,8 +1256,6 @@ GET kibana_sample_data_logs/_search
 파이프라인 집계는 문서나 필드의 내용이 아니라 다른 집계 결과를 집계 대상으로 지정한다.
 즉 다른 집계의 결과를 입력값으로 가져와서 작업을 수행한다.
 주로 buckets_path라는 인자를 통해 다른 집계의 결과를 가져오며, 이 buckets_path는 상대 경로로 지정한다.
-
-##### cumulative_sum 집계
 
 ```HTTP
 GET kibana_sample_data_ecommerce/_search
@@ -1242,11 +1285,7 @@ GET kibana_sample_data_ecommerce/_search
     }
   }
 }
-```
 
-##### max_bucket 집계
-
-```HTTP
 GET kibana_sample_data_ecommerce/_search
 {
   "size":0,
