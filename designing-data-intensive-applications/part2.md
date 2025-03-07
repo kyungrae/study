@@ -9,7 +9,7 @@ There are various reasons why you might want to distribute a database across mul
 - Latency  
   If you have users around the world, you might want to have servers at various locations worldwide so that each user can be served from a datacenter that is geographically close to them.
 
-In the shared-nothing architecture approach, each machine running the database software is called node.
+In the shared—nothing architecture approach, each machine running the database software is called node.
 Each node uses its CPUs, RAM, and disks independently.
 Any coordination between nodes is done at the software level, using a conventional network.
 
@@ -648,7 +648,7 @@ sequenceDiagram
 ```
 
 This anomaly is called a nonrepeatable read or read skew.
-Snapshot isolation idea is that each transaction reads from a consistent snapshot of the database-the transaction sees all the data that was committed in the database at the start of the transaction.
+Snapshot isolation idea is that each transaction reads from a consistent snapshot of the database—the transaction sees all the data that was committed in the database at the start of the transaction.
 
 From a performance point of view, a key principle of snapshot isolation is reader never block writers, and writes never block readers.
 This allows a database to handle long-running read queries on a consistent snapshot at the same time as processing writes, without any lock between the two.
@@ -670,7 +670,7 @@ UPDATE counters SET value = value + 1 where key = 'foo';
 ```
 
 Atomic operations are usually implemented by taking an exclusive lock on the object when it is read so that no other transaction can read it until the update has been applied.
-Not all writes can easily be expressed in terms of atomic operations-but in situations where atomic operations can be used, they are usually best choice.
+Not all writes can easily be expressed in terms of atomic operations—but in situations where atomic operations can be used, they are usually best choice.
 Unfortunately object-relational mapping frameworks make it easy to accidentally write code that performs unsafe read-modify-write cycles instead of using atomic operations provided by the database.
 
 ##### Explicit locking
@@ -803,7 +803,7 @@ The usual way of handling unbounded delay is a timeout: after some time you give
 #### Latency and Resource Utilization
 
 Latency guarantees are achievable in certain environments, if resources are statically partitioned (e.g, dedicated hardware and exclusive bandwidth allocations).
-However, it comes at the cost of reduced utilization--in other words, it is more expensive.
+However, it comes at the cost of reduced utilization—in other words, it is more expensive.
 On the other hand, multi-tenancy with dynamic resource partitioning provides better utilization, so it is cheaper, but it has the downside of variable delays.
 
 ### Unreliable Clocks
@@ -877,7 +877,7 @@ sequenceDiagram
 
 #### Byzantine Faults
 
-Distributed systems problems become much harder if there is a risk that nodes may "lie"-for example, if a node may claim to have received a particular message when in fact it didn't.
+Distributed systems problems become much harder if there is a risk that nodes may "lie"—for example, if a node may claim to have received a particular message when in fact it didn't.
 Such behavior is known as a **Byzantine fault**.
 
 #### System Model and Reality
@@ -911,8 +911,293 @@ Safety is often informally defined as nothing bad happens, and liveness as somet
 
 ### Consistncy Guarantees
 
+Most replicated databases provide at least eventual consistency, which means that if you stop writing to the database and wait for some unspecified length of time, then eventually all read requests will return the same value.
+However, this is a very weak guarantee—it doesn't say anything about when the replicas will converge.
+Until the time of convergence, reads could return anything or nothing.
+
+We will explore stronger consistency models that data systems may choose to provide.
+They don't come for free: systems with stronger guarantees may have worse performance or be less fault-tolerant than systems with weaker guarantees.
+Nevertheless, stronger guarantees can be appealing because they are easier to use correctly.
+
 ### Linearizability
+
+It is the idea behind linearizability that the database could give the illusion that there is only one replica.
+Maintaining the illusion of a single copy of the data means guaranteeing that the value read is the most recent, up-to-date value, and doesn't come from a stale cache or replica.
+In other words, linearizability is a recency guarantee.
+
+#### What Makes a System Linearizable?
+
+Below figure shows clients concurrently reading and writing the same key x in a linearizable database.
+In the distributed systems literature, x is called a register—in practice, it could be one key in a key-value store, one row in a relational database, or one document in a document database.
+
+```mermaid
+gantt
+  dateFormat X
+  axisFormat %s
+  section Client A
+    read(x)=>0: 0, 2
+    read(x)=>1: 4, 6
+    read(x)=>1: 8, 10
+  section Client B
+    read(x)=>0: 2, 4
+    read(x)=>1: 6, 8
+  section Client C
+    write(x, 1)=>ok: 3, 7
+```
+
+In a linearizable system we imagine that there must be some point in time (between the start and end of the write operation) at which the value of x atomically flips from 0 to 1.
+
+Each operation in the figure below is marked with a vertical line at the time when we think the operation was executed.
+The requirement of linearizability is that the lines joining up the operation markers always move forward in time, never backward.
+This requirement ensures the recency guarantee we discussed earlier: once a new value has been written or read, all subsequent reads see the value that was written, until it is overwritten again.
+
+![visualizing the points in time](./images/linearizable.png)
+
+#### Relying on Linearizability
+
+##### Locking and leader election
+
+A system that uses single-leader replication needs to ensure that there is indeed only one leader.
+One way of electing a leader is to use a lock.
+No matter how this lock is implemented, it must be linearizable.
+
+##### Constraints and uniqueness guarantees
+
+If you want to enforce this constraint as the data is written, you need linearizability.
+
+##### Cross-channel timing dependencies  
+
+Without the recency guarantee of linearizability, race conditions between these two channels are possible.
+
+```mermaid
+flowchart
+  client@{ shape: circle, label: "Client" } -- 1.upload image --> server["Web server"]
+  server -- 2.store full-size image--> storage[(File storage)]
+  server -- 3.send message --> queue@{ shape: das}
+  queue --4.deliver message--> resizer["Image resizer"]
+  storage --5.fetch full size image--> resizer 
+  resizer --6.store resized image--> storage
+```
+
+#### Implementing Linearizable
+
+The simplest linearizable implementation would be to really only use a single copy of the data.
+However, that approach would not be able to tolerate faults.
+The most common approach to making a system fault-tolerant is to use replication
+
+- Single-leader replication (potential linearizable)  
+If you make reads from the leader, or form synchronously updated follower, they have the potential to be linearizable. However, not every single-leader database is actually linearizable, either by design (because is uses snapshot isolation) or due to concurrency bugs.
+- Consensus algorithm (linearizable)  
+Some consensus algorithms bear a resemblance to single-leader replication. However, consensus protocols contain measures to prevent split brain and stale replicas.
+- Multi-leader replication (not linearizable)  
+They concurrently process writes on multiple nodes and asynchronously replicate them to other nodes.
+- Leaderless replication (probably not linearizable)  
+Network delay, Last write win conflict resolution based on time-of-day clocks, and Sloppy quorums ruin any chance of linearizability
+
+#### The Cost of Linearizability
+
+With a multi-leader database, each datacenter can continue operating normally: since wirtes from one datacenter are asynchronously replicated to the other, the writes are simply queued up and exchanged when network connectivity is restored.
+
+```mermaid
+flowchart
+  DB1[(Leader replica)] <--Network interruption--> DB2[(Leader replica)]
+  client1@{ shape: circle, label: "Client" } --> DB1
+  client2@{ shape: circle, label: "Client" } --> DB1
+  client3@{ shape: circle, label: "Client" } --> DB2
+  client4@{ shape: circle, label: "Client" } --> DB2
+```
+
+If the network between database is interrupted in a single-leader setup, clients connected to the follower database cannot contact the leader, so they cannot make any writes to the database, nor any linearizable reads.
+If the application requires linearizable reads and writes, the network interruption cause the application to become unavailable.
+
+```mermaid
+flowchart
+  DB1[(Leader replica)] --Network interruption--> DB2[(Follower replica)]
+  client1@{ shape: circle, label: "Client" } --> DB1
+  client2@{ shape: circle, label: "Client" } --> DB1
+  client3@{ shape: circle, label: "Client" } --unavailable--> DB2
+  client4@{ shape: circle, label: "Client" } --unavailable--> DB2
+```
+
+When a network fault occurs, you have to choose between either linearizability or total availability.
+Thus, a better way of phrasing **CAP** would be either Consistent or Available when Partitioned.
+
+Many distributed database that choose not to provide linearizable guarantees: they do so primarily to increase performance, not so much for fault tolerance.
+Linearizability is slow.
 
 ### Ordering Guarantees
 
+#### Ordering and Causality
+
+Ordering helps preserve causality.
+Causality imposes an ordering on events: cause comes before effect; a message is sent before that message is received; the question comes before the answer.
+These chains of causally dependent operations define the causal order in the system.
+If a system obeys the ordering imposed by causality, we way that it is causally consistent.
+
+##### The causal order is not a total order
+
+A total order allows any two elements to be compared, so if you have two elements, you can always say which one is greater and which one is smaller.
+For example, natural numbers are totally ordered.
+
+However, mathematical sets are not totally ordered.
+We say they are incomparable, and therefore mathematical sets are partially ordered: in some cases one set is greater than another (if one set contains all the elements of another), but in other cases they are incomparable.
+
+- Linearizability  
+In a linearizable system, we have a total order of operations: if the system behaves as if there is only a single copy of the data, and every operation is atomic, this means that for any two operations we can always say which one happened first.
+- Causality  
+We say that two operations are concurrent if neither happened before the other.
+Put antoher way, two events are ordered if they are causally related, but they are incomparable if they are concurrent.
+This means that causality defines a partial order, not a total order: some operations are ordered with respect to each other, but some are incomparable.
+
+#### Sequence Number Ordering
+
+In order to determine the causal ordering, we can use sequence numbers or timestamps to order events.
+In a database with single-leader replication, the leader can simply increment a counter for each operation, and thus assign a monotonically increasing sequence number to each operation.
+
+##### Lamport timestamps
+
+If there is not single leader, it is less clear how to generate sequence numbers for operations.
+There is a simple method for generating sequence numbers that is consistent with causality.
+It is called a Lamport timestamp.
+Each node has a unique identifier, and each node keeps a counter of the number operations it has processed.
+The lamport timestamp is then simply a pair of (counter, node ID).
+
+```mermaid
+sequenceDiagram
+  actor Client A
+  participant Node 1
+  participant Node 2
+  actor Client B
+
+  Client A->>+Node 1: write max=0
+  note left of Node 1: c=1
+  Node 1->>-Client A: (1, 1)
+
+  Client B->>+Node 2: write max=0
+  note right of Node 2: c=1
+  Node 2->>-Client B: (1, 2)
+  Client B->>+Node 2: write max=1
+  note right of Node 2: c=2
+  Node 2->>-Client B: (2, 2)
+
+  Client A->>+Node 2: write max=1
+  note right of Node 2: c=3
+  Node 2->>-Client A: (3, 1)
+  Client A->>+Node 1: write max=3
+  note left of Node 1: c=4
+  Node 1->>-Client A: (4, 1)
+```
+
+Every node and every client keeps track of the maximum counter value it has seen so far, and includes that maximum on every request.
+When a node receives a request or response with a maximum counter value greater than its own counter value, it immediately increase its own counter to that maximum.
+
+##### Timstamp ordering is not sufficient
+
+Consider a system that needs to ensure that a username uniquely identifies a user account.
+When a node has just received a request from a user to create a username, and needs to decide right now whether the request should succeed or fail.
+At that moment the node does not know wheter another node is concurrently in the process of creating an account with the same username, and what timestamp that order node may asign to the operation.
+
+The problem here is that the toatl order of operations only emerges after you have collected all of the operations.
+The idea of knowing when your total order is finalized is captured in the topic of total order broadcast.
+
+#### Total Order Broadcast
+
+Single-leader replication determines a total order of operations by choosing one node as the leader and sequencing all operations on a single CPU core on the leader.
+The challenge then is how to scale the system if the throughput is greater than a single leader can handle, and also how to handle failover if the leader fails.
+In the distributed literature, this is known as total order broadcast or atomic broadcast.
+
+Total order broadcast is usually described as a protocol for exchanging messages between nodes.
+Informally, it requires that two safety properties always be statisfied:
+
+- Reliable delivery (No message are lost)
+- Totally ordered delivery (Mesage are deliverd to every node in the same order)
+
 ### Distributed Transactions and Consensus
+
+#### Atomic Commit and Two-Phase Commit (2PC)
+
+Two-phase commit is an algorithm for achieving atomic transaction commit across multiple nodes—i.e., to ensure that either all nodes commit or all nodes abort.
+
+```mermaid
+sequenceDiagram
+  actor Coordinator
+  participant Database 1
+  participant Database 2
+
+  Coordinator->>+Database 1: write data
+  Database 1->>-Coordinator: OK
+  Coordinator->>+Database 2: write data
+  Database 2->>-Coordinator: OK
+
+  rect rgb(54, 58, 106)
+    Coordinator->>+Database 1: prepare
+    Database 1->>-Coordinator: yes/No
+    Coordinator->>+Database 2: prepare
+    Database 2->>-Coordinator: yes/No
+  end
+  rect rgb(40, 86, 49)
+    Coordinator->>+Database 1: commit/abort
+    Database 1->>-Coordinator: ok
+    Coordinator->>+Database 2: commit/abort
+    Database 2->>-Coordinator: ok
+  end
+```
+
+2PC uses a new component: a coordinator (also known as transaction manager).
+The coordinator is often implemented as a library within the same application process that is requesting the transaction, but it can also be a separate process or service.
+
+A 2PC transaction begins with the application reading and writing data on multiple database nodes.
+We call these database nodes participants in the transaction.
+When the application is ready to commit, the coordinator begins phase 1: it sends a *prepare* request to each of the nodes, asking them whether they are able to commit.
+The coordinator then tracks the responses from the participants:
+
+- If all participants reply "yes", indicating they are ready to commit, then the coordinator sends out a commit request in phase 2, and the commit actually takes place.
+- If any of the participants replies "no", the coordinator sends an abort request to all nodes in phase 2.
+
+#### Distributed Transactions in practice
+
+- Database-internal distributed transactions  
+Some distributed database support internal transactions among the nodes of that database.
+In this case, all the nodes participaiting in the transaction are running the same database software.
+- Heterogeneous distributed transactions  
+In a heterogeneous transaction, the participants are two or more different technologies.
+A distributed transaction across these systems must ensure atomic commit, even though the systems may be entirely different under the hood.
+
+#### Fault-Tolerant Consensus
+
+Consensus means getting several nodes to agree on something.
+The consensus problem is normally formalized as follows: one or more nodes may propose values, and the consensus algorithm decides on one of those values.
+
+In this formalism, a consensus algorithm must satisfy the following properties:
+
+- Uniform agreement  
+No two nodes decide differently
+- Integrity  
+No node decides twice
+- Validity  
+If a node decides value v, then v was proposed by some node.
+- Termination  
+Every node that does not crash eventually decides some value.
+
+Termination is liveness property, whereas the other three are safety properties.
+There is a limit to the number of failures that an algorithm can tolerate: in fact, it can be proved that any consensus algorithm requires at least a majority of nodes to be functioning correctly in order to assure termination.
+That majority can safely form a quorum.
+
+##### Consensus algorithm and total order broadcast
+
+Most of consensus algorithms (VSR, Paxos, Raft, and Zab) don't directly use the formal model described here.
+Instead, they decide on a sequence of values, which makes them total order broadcast algorithms.
+
+Remember that total order broadcast requires message to be delivered exactly once, in the smae order, to all nodes.
+If you think about it, this is equivalent to performing several rounds of consensus: in each round, nodes propse the message that they want to send nextm and then decide on the next message to be delivered in the total order.
+
+##### Epoch numbering and quorums
+
+All of these consensus protocols can make a weaker guarantee: the protocols define an epoch number (called the ballot number in Paxos, view number in Viewstamped Replication, and term number in Raft) and guarantee that within each epoch, the leader is unique.
+
+Every time the current leader is thought to be dead, a vote is started among the nodes to elect a new leader.
+This election is given an incremented epoch number, and thus epoch numbers are totally ordered and monotonically increasing.
+If there is a conflict between two different leaders in two different epochs, then the leader with the higher epoch number prevails.
+
+For every decision that a leader wants to make, it must send the proposed value to the other nodes and wait for a quorum of nodes to respond in favor of the proposal.
+A node votes in favor of a proposal only if it is not aware of another leader with a higher epoch.

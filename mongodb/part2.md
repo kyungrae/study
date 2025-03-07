@@ -14,7 +14,7 @@ db.users.createIndex({"age": 1, "username": 1})
 #### How MongoDB Selects an Index
 
 When a query comes in, MongoDB looks at the query's shape.
-The shape has to do with what fields are being searched on and additional information, such as whether or not there is sort.
+The shape has to do with what fields are being searched on and whether or not there is sort.
 Based on that information, the system identifies a set of candidate indexes that it might be able to use in satisfying the query.
 
 Create candidate query plans, and run the query in parallel threads.
@@ -276,11 +276,12 @@ The basic idea behind GridFS is that we can store large files by splitting them 
 The chunks for GridFS are stored in their own collection (e.g., fs.chunks).
 
 ```js
+db.fs.chunks.find()
 {
   _id: ObjectId('678f59f0378a252370e81db9'),
   files_id: ObjectId('678f59f0378a252370e81db8'), // The "_id" of the file document
   n: 0, // The chunk's position in the file
-  data: Binary.createFromBase64('SGVsbG8sIHdvcmxkCg==', 0) // The bytes in this chunk of the file
+  data: Binary.createFromBase64('SGVsbG8sIHdvcmxkCg==', 0) // The bytes in this chunk of the file & Hello, world
 }
 ```
 
@@ -288,6 +289,7 @@ The metadata for each file is stored in a separate collection (e.g., fs.files).
 Each document in the files collection represents a single file in GridFS and can contain any custom meta data that should be associated with that file.
 
 ```js
+db.fs.files.find()
 {
   _id: ObjectId('678f59f0378a252370e81db8'), // A unique ID for the file
   length: Long('13'), // The total number of bytes
