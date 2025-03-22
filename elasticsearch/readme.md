@@ -1315,4 +1315,143 @@ GET kibana_sample_data_ecommerce/_search
 }
 ```
 
-## 5 서비스 환경에 클러스터 구성
+## 5. 서비스 환경에 클러스터 구성
+
+## 5.1 운영 환경을 위한 설정과 클러스터 구성
+
+### 5.1.1 노드 설정과 노드 역할
+
+#### 노드 역할
+
+- master eligible node  
+마스터 후보 노드 중에서 선거를 통해 마스터 노드를 선출된다. 마스터 노드는 클러스터를 관리하는 역할을 수행한다.
+인덱스 생성이나 삭제, 어떤 샤드를 어느 노드에 할당할 것인지 등 중요한 작업을 수행한다.
+- data node  
+실제 데이터를 들고 있는 노드다. CRUD, 검색, 집계와 같이 데이터와 관련된 작업을 수행한다.
+- ingest node  
+데이터가 색인되기 전에 전처리를 수행하는 인제스트 파이프라인을 수행하는 노드다.
+- coordinator node  
+클라이언트 요청을 받아서 다른 노드에 요청을 분배하고 클라이언트에게 최종 응답을 돌려주는 노드를 조정 노드라고 한다.
+기본적으로 모든 노드가 조정 역할을 수행한다. 마스터나 데이터 등 주요 역할을 수행하지 않고 조정 역할만 수행하는 노드는 조정 전용 노드라고 부른다.
+
+#### config/elasticserarch.yml
+
+```yml
+# 노드 역할을 지정하는 설정이다. master, data, ingest 등을 0개 이상 조합해 지정한다. []와 같이 내용을 비워 두면 조정 전용 노드가 된다. 
+node.roles: [ master, data ]
+
+cluster.name: test-es
+node.name: test-es-node01
+
+# HTTP 통신을 위해 사용하는 포트를 지정한다.
+http.port: 9200
+# transport 통신을 위해 사용하는 포트를 지정한다.
+transport.port: 9300-9400
+
+path:
+  logs: /usr/share/elasticsearch/logs
+  data:
+    - /usr/share/elasticsearch/data
+
+network.host: 10.0.0.1
+# 엘라스틱서치에 바인딩할 네트워크 주소를 지정한다. network.publish_host는 클러스터의 다른 노드에게 자신을 알릴 때 쓰는 주소를 지정한다.
+network.bind_host: 0.0.0.0
+
+# 마스터 노드로 동작할 수 있는 노드 목록을 지정한다.
+discovery.seed_hosts: ["10.0.0.1", "10.0.0.2", "some-host-name.net"]
+
+# 클러스터를 처음 기동할 때 첫 마스터 선거를 수행할 후보 노드 목록을 지정한다.
+cluster.initial_master_nodes: ["test-es-node01", "test-es-node02", "test-es-node03"]
+xpack.security.enable: false
+```
+
+### 5.1.2 그 외 필요한 주요 설정
+
+#### Heap size
+
+힙 크기는 config/jvm.options 파일에 xms와 xmx를 같은 크기로 저정해야 한다.
+힙 크기는 최소한 시스템 메모리의 절반 이하로 지정해야 한다.
+시스템 메모리의 절반은 운영체제가 캐시로 쓰도록 놔두는 것이 좋다.
+루씬이 커널 시스템 캐시를 많이 활용하기 때문이다.
+
+힙 크기를 32GB 이상 지정하지 않아야 한다.
+JVM이 힙 영역에 생성된 객체에 접근하기 위한 포인터를 Ordinary Object Pointer라고 한다.
+32비트 환경에서는 4GB($2^{32}$)까지의 힙 영역을 사용할 수 있다.
+4GB를 넘어서는 힙을 사용해야 한다면 32비트 OOP로는 불가능하고 64비트 OOP를 사용해야 한다.
+
+그러나 Compressed Ordinary Object Pointers라는 기능을 적용하면 32GB 메모리까지 사용할 수 있다.
+자바는 객체를 8바이트 단위로 정렬해 할당하기 때문에 객체 간의 주소가 8바이트 배수만큼 차이난다.
+따라서 포이턴가 메모리의 주소를 직접 가리키지 않고 상대적인 위치 차이를 나타내면 1비트가 1바이트 8바이트 단위의 메모리 주소를 가리키도록 할 수 있다.
+Compressed OOP로 인코딩된 주소를 실제 주소로 디코딩하려면 3비트 시프트 연산 후 힙 영역이 시작되는 기본 주소를 더하는 작업이 필요하다.
+여기서 기본 주소를 0으로 바꾸는 기능을 Zero-based Compressed OOPs라고 한다.
+
+```sh
+$ java -Xmx32736m -XX:+PrintFlagsFinal 2> /dev/null | grep UseCompressedOops
+
+bool UseCompressedOops                        = true                           {product lp64_product} {ergonomic}
+
+$ java -XX:+UnlockDiagnosticVMOptions -Xlog:gc+heap+coops=debug -Xmx30720m -version
+
+[0.005s][debug][gc,heap,coops] Protected page at the reserved heap base: 0x0000000300000000 / 16777216 bytes
+[0.005s][debug][gc,heap,coops] Heap address: 0x0000000301000000, size: 30736 MB, Compressed Oops mode: Non-zero based: 0x0000000300000000, Oop shift amount: 3
+openjdk version "17.0.2" 2022-01-18 LTS
+OpenJDK Runtime Environment Corretto-17.0.2.8.1 (build 17.0.2+8-LTS)
+OpenJDK 64-Bit Server VM Corretto-17.0.2.8.1 (build 17.0.2+8-LTS, mixed mode, sharing)
+```
+
+일반적으로 Zero-based Compressed OOPs까지도 적용되는 선까지 메모리 크기를 줄이는 설정이 성능상 낫지만, 반드시 그렇지는 않다.
+
+#### swapoff
+
+엘라스틱서치는 스와핑을 사용하지 않도록 강력히 권고한다.
+
+```sh
+# 스와핑 완전히 끄기
+$ sudo swapoff -a
+
+# 재부팅 이후에도 스와핑 비활성화를 위해 swap 부분을 제거
+$ sudo vin /etc/fstab
+
+# 스와핑 경향성 최소화
+$ sysctl -w vm.swppiness=1
+
+# 재부팅 이후에도 스와핑 경향성을 최소화하고 싶다면 아래 파일에 vm.swappiness=1 설정 추가
+$ sudo vim /etc/sysctl.d/elasticsearch.conf
+
+# config/elasticsearch.yml 파일에 bootstrap.memory_lock: true 설정
+```
+
+#### vm.max_map_count
+
+프로세스가 최대 몇 개까지 메모리 맵 영역을 가질 수 있는지를 지정한다.
+루씬은 mmap을 적극적으로 활용하기 때문에 vm.max_mapcount 값을 262144보다 높여서 지정해야 한다.
+
+```sh
+$ sudo sysctl -w vm.vm_max_map_count=262144
+
+# 재부팅 후에도 메모리 맵 지정
+$ sudo vim /etc/sysctl.d/elasticsearch.conf
+```
+
+#### 파일 기술자
+
+엘라스틱서치는 많은 file descriptor를 필요로 한다. 엘라스틱서치는 이 값을 최소 65535 이상으로 지정하도록 가이드한다.
+
+```sh
+# 현재 값 확인
+$ ulimit -a | grep "\-n:"
+$ sudo ulimit -n 65535
+
+# {username} - nofile 65535 추가
+$ sudo vim /etc/sucurity/limits.conf
+```
+
+### 5.2 클러스터 구성 전략
+
+- 마스터 후보 노드와 데이터 노드를 분리한다.
+- 마스터 후보 노드는 홀수를 준비하는 것이 효율적이다.
+- 여유가 있다면 읽기 작업을 담당하는 조정 전용 노드와 쓰기 작업을 담당하는 조정 전용 노드를 분리하는 것도 좋은 방법이다.
+
+## 5.3 보안 기능 적용
+
+

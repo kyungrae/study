@@ -14,3 +14,24 @@ indices.query.query_string.allowLeadingWildcard: false
 search.allow_expensive_queries: false
 index.max_result_window: false
 
+---
+
+node.roles: [ master, data ]
+
+cluster.name: test-es
+node.name: test-es-node01
+
+http.port: 9200
+transport.port: 9300-9400
+
+path:
+  data: /usr/share/elasticsearch/data
+  logs: /usr/share/elasticsearch/logs
+
+network.host: 10.0.0.1
+network.bind_host: 0.0.0.0
+
+discovery.seed_hosts: ["10.0.0.1", "10.0.0.2", "some-host-name.net"]
+
+cluster.initial_master_nodes: ["test-es-node01", "test-es-node02", "test-es-node03"]
+xpack.security.enable: false
