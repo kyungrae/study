@@ -1,5 +1,10 @@
 # Elasticsearch
 
+```sh
+docker cp elasticsearch_es01_1:/usr/share/elasticsearch/config/certs/ca/ca.crt config/.
+curl -v --cacert config/ca.crt -u elastic:elastic https://localhost:9200
+```
+
 ## 2. 엘라스틱서치 기본 동작과 구조
 
 ### 2.2 엘라스틱서치 구조 개괄
