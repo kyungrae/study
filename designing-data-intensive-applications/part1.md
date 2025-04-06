@@ -79,6 +79,7 @@ MapReduce is a fairly low-level programming model for distributed execution on a
 ### Graph-Like Data Model
 
 As the connection within your data becomes more complex, it becomes more natural to start modeling your data as a graph.
+Graph model are not limited to such homogeneous data: an equally powerful use of graphs is to provide a consistent way of storing completely different types of objects in a single datastore.
 
 #### Property Graphs
 
@@ -105,6 +106,42 @@ MATCH
   (person) -[:BORN_IN]-> () -[:WITHIN*0..]-> (us:Location {name:'United States'}),
   (person) -[:LIVES_IN]-> () -[:WITHIN*0..]-> (us:Location {name:'Europe'})
 RETURN person.name
+```
+
+#### Graph Queries in SQL
+
+```SQL
+WITH RECURSIVE
+  in_usa(vertex_id) AS (
+      SELECT vertex_id FROM vertices WHERE properties->>'name' = 'United States'
+    UNION
+      SELECT edges.tail_vertex FROM edges
+        JOIN in_usa ON edges.head_vertex = in_usa.vertex_id
+        WHERE edges.label = 'within'
+  ),
+
+  in_europe(vertex_id) AS (
+      SELECT vertex_id FROM vertices WHERE properties->>'name' = 'Europe'
+    UNION
+      SELECT edges.tail_vertex FROM edges
+        JOIN in_usa ON edges.head_vertex = in_europe.vertex_id
+        WHERE edges.label = 'within'
+  ),
+  born_in_usa(vertex_id) AS (
+      SELECT edges.tail_vertex FROM edges
+        JOIN in_usa ON edges.head_vertex = in_usa.vertex_id
+        WHERE edges.label = 'born_in'
+  ),
+  born_in_europe(vertex_id) AS (
+      SELECT edges.tail_vertex FROM edges
+        JOIN in_europe ON edges.head_vertex = in_europe.vertex_id
+        WHERE edges.label = 'lives_in'
+  )
+
+SELECT vertices.properties->>'name'
+FROM vertices
+JOIN born_in_usa ON vertices.vertex_id = born_in_usa.vertex_id
+JOIN born_in_usa ON vertices.vertex_id = lives_in_europe.vertex_id
 ```
 
 ## 3. Storage and Retrieval
