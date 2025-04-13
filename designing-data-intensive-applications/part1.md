@@ -2,6 +2,33 @@
 
 ## 1. Reliable, Scalable, and Maintainable Application
 
+A data-intensive application is typically built from standard building blocks that provide commonly needed functionality.
+
+- Store data so that they, or another application, can find it again later (database)
+- Remember the result of an expensive operation, to speed up reads (cache)
+- Allow users to search data by keyword or filter it in various ways (search index)
+- Send a message to another process, to be handled asynchronously (stream processing)
+- Periodically crunch a large amount of accumulated data (batch processing)
+
+We will start by exploring the fundamentals of what we are trying to achieve: reliable, scalable, and maintainable data systems.
+
+### Thinking About Data Systems
+
+When you combine several tools in order to provide a service, the service's interface or application programming interface (API) usually hides those implementation details from clients.
+Now you have essentially created a new, special-purpose data system from smaller, general-purpose components.
+Your composite data system may provide certain guarantees: e.g., that the cache will be correctly invalidated or updated on writes so that outside clients see consistent results.
+You are now not only an application developer, but also a data system designer.
+
+```mermaid
+flowchart
+  user@{shape: circle, label: "User"} -- Client requests --> code1[Application code] -- First check if data is cached --> cache@{shape: cyl, label: "In-meory cache"}
+  code1 -- Cache misses and writes --> database@{shape: cyl, label: "Primary database"}
+  database -- Captures changes to data --> code2[Application code] -- Invalidate or update cache --> cache
+  code1 -- Serach requests--> search@{shape: cyl, label: "Full-text index"}
+  code2 -- Apply updates to searindex --> search
+  code1 -- Asynchronous task --> queue@{ shape: das, label: "Message queue" } --> code3[Application code] --send email--> outside@{ shape: dbl-circ, label: "Outside world" }
+```
+
 ### Reliability
 
 The system should continue to work correctly (perform the correct function at the desired level of performance) even in the face of adversity(hard or soft-ware faults, and event human error)
@@ -13,17 +40,13 @@ The system should continue to work correctly (perform the correct function at th
 
 ### Scalability
 
-As the system grows(in data volume, traffic volume, or complexity), there should be reasonable ways of dealing with that growth.
+Scalability is the term we use to describe a system's ability to cope with increased load.
+Note that it is not a one-dimensional label that we can attach to a system.
+Discussing scalabiltiy means considering questions like "If the system grows in a particular way, what are our options for coping with the growth?" and "How can we add computing resources to handle the additional load?"
 
 #### Describing Load
 
-The best choice of parameters depends on the architecture of your system.
-
-- Requests per second
-- Ratio of reads to writes
-- The number of simultaneously active users in chat room
-- The hit rate on a cache
-- The distribution of followers per user
+The best choice of parameters depends on the architecture of your system: it may be requests per second to a web server, the ratio of reads to writes in a database, the number of simultaneously active users in chat room, the hit rate on a cache, the distribution of followers per user, or something else.
 
 #### Describing Performance
 
@@ -37,13 +60,20 @@ Both questions require performance numbers, performance numbers can vary and may
 We need to think of response time not as a single value, but as a distribution of values.
 High percentiles of response time(tail latencies) are important because they directly affect the user's experience of the service.
 
-When generating load artificially in order to test the scalability of a system, the load generating client needs to keep sending requests independently of the response time.
-
 ### Maintainability
 
 Over time, many different people will work on the system, and they should all be able to work on it productively.
 
+- Operability  
+Make it easy for operations teams to keep the system running smoothly.
+- Simplicity  
+Make it easy for new engineers to understand the system, by removing as much as possible from the system.
+- Evolvability  
+Make it easy for engineers to make changes to the system in the future, adapting it for unanticipated use cases as requirements change.
+
 ## 2. Data Models and Query Languages
+
+Data models are perhaps the most important part of developing software, because they have such a profound effect: not only on how the software is written, but also on how we think about the problem that we are solving.
 
 ### Relational Models Versus Document Models
 
