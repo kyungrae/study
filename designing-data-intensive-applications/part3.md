@@ -16,20 +16,13 @@ Let's distinguish three different types of systems:
 
 - Services (online systems)  
 A service waits for a request or instruction from a client to arrive. When one is received, the service tries to handle it as quickly as possible and sends a response back.
-Response time is usually the primary measure of performance of a service, and availability is often very important.
 - Batch processing systems (offline systems)  
 A batch processing system takes a large amount of input data, runs a job to process it, and produces some output data.
-Jobs often take a while, so there normally isn't a user waiting for the job to finish.
-Instead, batch jobs are often scheduled to run periodically.
-The primary performance measure of a batch job is usually throughput.
 - Stream processing systems (near-real-time systems)  
 Stream processing is somewhere between online and offline processing.
 Like a batch processing system, a stream processor consumes input and produces outputs.
-However, a stream job operates on events shortly after they happen, whereas a batch job operates on a fixed set of input data.
 
 Batch processing is an important building block in our quest to build reliable, scalable, and maintainable applications.
-Map-Reduce, a batch processing algorithm, was called "the algorithm that makes Google so massively scalable".
-MapReduce is a fairly low-level programming model compared to the parallel processing systems that were developed for data warehouses, but it was a major step forward in terms of the scale of processing that could be achieved on commodity hardware.
 
 ### Batch Processing with Unix Tools
 
@@ -39,8 +32,6 @@ For example, using the nginx default access log format, one line of the log migh
 ```log
 216.84.210.78 - - [27/Feb/2015:17:55:11 ++0000] "GET /css/typograph.css HTTP/1.1" 200 3377 "http://martin.kleppmann.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_5 AppleWebKit/537.36 (KHTML, like Gecko) Chrome/40.02214.115 Safari/537.36
 ```
-
-`$remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent"`
 
 #### Simple Log Analysis
 
@@ -53,16 +44,11 @@ cat /var/log/nginx/access.log |
   head -n 5
 ```
 
-Although the preceding command line likely looks a bit obscure if you're unfamiliar with Unix tools, it is incredibly powerful.
 It will process gigabytes of log files in a matter of seconds, and you can easily modify the analysis to suit your needs.
-
 If the job's working set is larger than the available memory, the sorting approach has the advantage that it can make efficient use of disks.
 It's the same principle as we discussed in SSTables and LSM-Trees: chunks of data can be sorted in memory and written out to disk as segment files, and then multiple sorted segments can be merged into a larger sorted file.
 
 #### The Unix Philosophy
-
-Dough McIlroy, the inventor of Unix pipes, first described them: "We should have some ways of connecting programs like garden hose—screw in another segment when it becomes necessary to massage data in another way. This is the way of I/O also."
-The plumbing analogy stuck, and the idea of connecting programs with pipes became part of what is now known as the Unix philosophy—a set of design principles that became popular among the developers and users of Unix.
 
 ##### A uniform interface
 
@@ -158,10 +144,10 @@ To handle these dependencies between job executions, various workflow schedulers
 
 #### Reduce-Side Joins and Grouping
 
-In many datasets it is common for one record to have an association with another record: a foreign key in a relational meodel, a document reference in a document meodel, or an edge in a graph model.
+In many datasets it is common for one record to have an association with another record: a foreign key in a relational meodel, a document reference in a document model, or an edge in a graph model.
 A join is necessary whenever you have some code that needs to access records on both sides of that association.
 
-When we talk about joings in the context of batch processing, we mean resolving all ocurrences of some assocication within a dataset.
+When we talk about joins in the context of batch processing, we mean resolving all ocurrences of some assocication within a dataset.
 
 ##### Example: analysis of user activity events
 
@@ -227,11 +213,49 @@ This algorithm is known as a sort-merge join.
 
 #### Map-Side Joins
 
+The reduce-side approach has the advantage that you do not need to make any assumptions about the input data.
+However, the downside is that all that sorting, copying to reducers, and merging of reducer inputs can be quite expensive.
+
+If you can make certain assumptions about your input data, it is possible to make joins faster by using a so-called map-side join.
+This approach uses a cut-down MapReuce job in which there are no reducers and no sorting.
+
+- Broadcast hash joins  
+The simplest way of performing a map-side join applies in the case where a large dataset is joined with a small dataset.
+In particular, the small dataset needs to be small enough that it can be loaded entirely into memory in each of the mappers.
+- Partitioned hash joins  
+If the inputs to the map-side join are partitioned in the same way, then the hash join approach can be applied to each partition independently.
+This approach works if both of the joni's inputs have the same number of partitions, with records assigned to partitions based on the same key and the same hash function.
+- Map-side merge joins  
+Another variant of a map-side join applied if the input datasets are not only partitioned in the same way, but also sorted based on the same key.
+
 #### The Output of Batch Workflows
+
+- Building search indexes
+- Key-value stores as batch process output(classifier and recommendation systems)
 
 #### Comparing Hadoop to Distributed Databases
 
+Msassively parallel processing databases focus on parallel execution of analytic SQL queries on a cluster of machines, while the combination of MapReduce and a distributed filesystem provides something much more like a general-purpose operating system that can run arbitrary programs.
+
 ### Beyond MapReduce
+
+#### Materialization of Intermiediate State
+
+The files on the distributed filesystem are simply intermediate state: a means of passing data from one job to the next.
+MapReduce's approach of fully materializing intermiediate state has downsides compared to Unix pipes:
+
+- Skew or varying load on different machines means that a job often has a few straggler tasks that take much longer to complete than the others.
+- Mappers are often redundant.
+- Storing intermediate state in a distributed filesystem means those files are replicated across several nodes.
+
+##### Dataflow engines
+
+New execution engines  for distributed batch computations handle an entire workflow as one job, rather than breaking it up into independent subjobs.
+
+Unlike in MapReduce, these functions need not take the strict roles of alternating map and reduce, but instead can be assembled in more flexible wasy.
+We call these functions operators.
+
+#### High-Level APIs and Language
 
 ## 11. Stream Processing
 

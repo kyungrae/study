@@ -176,23 +176,49 @@ JOIN born_in_usa ON vertices.vertex_id = lives_in_europe.vertex_id
 
 ## 3. Storage and Retrieval
 
+You do need to select a storage engine that is appropriate for your application, from the many that are available.
+In order to tune a storage engine to perform well on your kind of workload, you need to have a rought idea of what the storage engine is doing under the hood.
+
 ### Data Structures That Power your Database
+
+The general idea behind indexes is to keep some additional metadata on the side, which acts as a signpost and helps you to locate the data you want.
+
+#### Hash Indexes
+
+Keep an in-memory hash map where every key is mapped to a byte offset in the data file—
+the the location at which the value can be found.
+
+![hash index](./images/hash_index.png)
+
+Break the log into segments of a certain size by closing a segment file when it reaches a certain size, and making subsequent writes to a new segment file.
+We can then perform compaction on these segments.
+**Compaction** means throwing away duplicate keys in the log, and keeping only the most recent update for each key.
+
+![compaction](./images/compacation.png)
 
 #### SStable and LSM tree
 
-Their key idea is that they systematically turn random-access writes into sequential writes on disk, which enables higher write throughput due to the performance characteristics of hard drives and SSDs.
+Require that the sequence of key-value pairs is sorted by key.
+We call this format Sorted String Table (SSTable).
+We also require that each key only appears once within each merged segment file (the compaction process ensure that).
 
-- SSTable requires that the sequence of key-value pairs is sorted by key and that each key only appears once within each merged segment file(the compaction process already ensures that).
 - In-memory indexes can be sparse because of sorting.
 - It uses a red-black tree or AVL tree(memtable) to maintain a sorted structure on disk.
+
+##### Performance optimizations
+
 - The LSM-tree algorithm can be slow when looking up keys that do not exist in the database. A Bloom filter is a memory-efficient data structure for approximating the contents of a set.
+- There are strategies to determin the order and timing of how SSTables are compacted and merged.
+  - In size-tiered compaction, newer and smaller SSTables are successively merged into older and larger SSTables.
+  - In leveled compaction, the key range is split up into smaller SSTables and older data is moved  into separatee "levels," which allows the compaction to proceed more incrementally and use less disk space.
 
 #### B-Tree
 
-B-trees break the database down into fixed-size blocks or sequentially.
+The log-structured indexs we saw earlier break the database down into variable-size segments, typically serveral megabytes or more in size, and always write a segment seuentially.
+B-trees break the database down into fixed-size blocks or pages and read or write one page at a time.
+
 One page is designed as the root of the B-tree.
 Each child is responsible for a continuous range of keys, and the keys between the references indicate where the boundaries between those ranges lie.
-Eventually we get down to a page containing individual keys(a leaf page), which either contains the value for each key inline or contains references to the pages where the value can be found.
 
 ### Transaction Processing or Analytics?
 
