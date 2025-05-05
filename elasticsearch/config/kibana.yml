@@ -2,3 +2,7 @@ server.port: 5601
 server.host: localhost
 server.publicBaseUrl: "http://localhost:5601"
 elasticsearch.hosts: ["http://localhost:9200"]
+
+server.ssl.enabled: true
+server.ssl.certificate: "/path/to/kibana/config/certificate.pem"
+server.ssl.key: "/path/to/kibana/config/private.key"

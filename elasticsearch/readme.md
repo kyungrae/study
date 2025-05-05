@@ -273,9 +273,9 @@ flowchart
   Analyzer --> Term --> Index@{ shape: cyl, label: "Inverted index" }
 ```
 
-- Character filter: character stream을 받아서 특정한 문자를 추가, 변경, 삭제한다.
-- Tokenizer: character stream을 받아서 여러 token으로 쪼개어 token stream을 만든다.
-- Token filter: token stream을 받아서 token을 추가, 변경, 삭제한다.
+- character filter: character stream을 받아서 특정한 문자를 추가, 변경, 삭제한다.
+- tokenizer: character stream을 받아서 여러 token으로 쪼개어 token stream을 만든다.
+- token filter: token stream을 받아서 token을 추가, 변경, 삭제한다.
 
 #### Analyzer API
 
@@ -885,7 +885,7 @@ POST [인덱스 이름]/_search
 
 ##### from과 size
 
-size는 검색 결과로 몇 개의 문서를 반환할 것인지 지정한다. form은 몇 번째 문서부터 결과를 반환할지 오프셋을 지정한다.
+size는 검색 결과로 몇 개의 문서를 반환할 것인지 지정한다. from은 몇 번째 문서부터 결과를 반환할지 오프셋을 지정한다.
 from과 size 페이지네이션은 두 가지 문제점이 있다.
 첫번째는 from 값이 올라갈수록 무거운 검색을 수행한다는 점이다.
 두번째는 현재 페이지 검색 요청과 이전 페이지 검색 요청 사이에 새로운 문서가 색인되거나 삭제될 수 있기 때문에 데이터를 중복이나 누락 없이 제공할 수 없다.
@@ -1362,7 +1362,7 @@ network.host: 10.0.0.1
 # 엘라스틱서치에 바인딩할 네트워크 주소를 지정한다. network.publish_host는 클러스터의 다른 노드에게 자신을 알릴 때 쓰는 주소를 지정한다.
 network.bind_host: 0.0.0.0
 
-# 마스터 노드로 동작할 수 있는 노드 목록을 지정한다.
+# 노드가 클러스터에 합류하려고 할 때 다른 노드와 접촉하기 위한 IP/host 목록을 지정합니다.
 discovery.seed_hosts: ["10.0.0.1", "10.0.0.2", "some-host-name.net"]
 
 # 클러스터를 처음 기동할 때 첫 마스터 선거를 수행할 후보 노드 목록을 지정한다.
@@ -1386,7 +1386,7 @@ JVM이 힙 영역에 생성된 객체에 접근하기 위한 포인터를 Ordina
 
 그러나 Compressed Ordinary Object Pointers라는 기능을 적용하면 32GB 메모리까지 사용할 수 있다.
 자바는 객체를 8바이트 단위로 정렬해 할당하기 때문에 객체 간의 주소가 8바이트 배수만큼 차이난다.
-따라서 포이턴가 메모리의 주소를 직접 가리키지 않고 상대적인 위치 차이를 나타내면 1비트가 1바이트 8바이트 단위의 메모리 주소를 가리키도록 할 수 있다.
+따라서 포인터가 메모리의 주소를 직접 가리키지 않고 상대적인 위치 차이를 나타내면 1비트가 1바이트 8바이트 단위의 메모리 주소를 가리키도록 할 수 있다.
 Compressed OOP로 인코딩된 주소를 실제 주소로 디코딩하려면 3비트 시프트 연산 후 힙 영역이 시작되는 기본 주소를 더하는 작업이 필요하다.
 여기서 기본 주소를 0으로 바꾸는 기능을 Zero-based Compressed OOPs라고 한다.
 
@@ -1405,17 +1405,15 @@ OpenJDK 64-Bit Server VM Corretto-17.0.2.8.1 (build 17.0.2+8-LTS, mixed mode, sh
 ```
 
 일반적으로 Zero-based Compressed OOPs까지도 적용되는 선까지 메모리 크기를 줄이는 설정이 성능상 낫지만, 반드시 그렇지는 않다.
+시스템 환경이나 데이터 특성, 주요 사용 패턴에 따라 다소 달라진다.
 
-#### swapoff
+#### Swapping
 
 엘라스틱서치는 스와핑을 사용하지 않도록 강력히 권고한다.
 
 ```sh
 # 스와핑 완전히 끄기
 $ sudo swapoff -a
-
-# 재부팅 이후에도 스와핑 비활성화를 위해 swap 부분을 제거
-$ sudo vin /etc/fstab
 
 # 스와핑 경향성 최소화
 $ sysctl -w vm.swppiness=1
@@ -1429,7 +1427,7 @@ $ sudo vim /etc/sysctl.d/elasticsearch.conf
 #### vm.max_map_count
 
 프로세스가 최대 몇 개까지 메모리 맵 영역을 가질 수 있는지를 지정한다.
-루씬은 mmap을 적극적으로 활용하기 때문에 vm.max_mapcount 값을 262144보다 높여서 지정해야 한다.
+루씬은 mmap(memory-mapped file I/O)을 적극적으로 활용하기 때문에 vm.max_mapcount 값을 262144보다 높여서 지정해야 한다.
 
 ```sh
 $ sudo sysctl -w vm.vm_max_map_count=262144
@@ -1453,10 +1451,53 @@ $ sudo vim /etc/sucurity/limits.conf
 
 ### 5.2 클러스터 구성 전략
 
-- 마스터 후보 노드와 데이터 노드를 분리한다.
-- 마스터 후보 노드는 홀수를 준비하는 것이 효율적이다.
-- 여유가 있다면 읽기 작업을 담당하는 조정 전용 노드와 쓰기 작업을 담당하는 조정 전용 노드를 분리하는 것도 좋은 방법이다.
+#### 5.2.1 마스터 후보 노드와 데이터 노드를 분리
+
+마스터 노드는 클러스터를 관리하는 중요한 역할을 수행한다.
+엘라스틱서치 운영에서 발생할 수 있는 여러 가지 문제를 보면 상대적으로 데이터 노드가 죽을 확률이 높다.
+마스터 역할과 데이터 역할을 분리해 두지 않았다면 마스터 역할이 제대로 수행되지 않아 클러스터 안정성이 크게 떨어진다.
+
+데이터 노드를 재시작할 필요가 없는데 재시작한다면 불필요한 샤드 복구 과징이 수행된다.
+마스터 노드를 재시작할 필요가 없는데 재시작하다면 불필요한 마스터 재선출 과정이 발생할 수 있다.
+
+#### 5.2.2마스터 후보 노드와 투표 구성원
+
+마스터 노드를 선출하는 집단이 투표 구성원(voting configuration)이다.
+투표 구성원은 마스터 후보 노드 중 일부 혹은 전체로 구성된 마스터 후보 노드의 부분 집합으로 마스터 선출이나 클러스터 상태 저장 등의 의사결정에 참여하는 노드의 모임이다.
+
+split brain 문제를 방지하기 위해 투표 구성원으로부터 과반의 찬성을 얻어야 한다.
+투표 구성원이 짝수인 경우 엘라스틱서치는 투표 구성원을 홀수로 유지하기 위해 투표 구성원에서 마스터 후보 노드를 하나 제외한다.
+
+#### 5.2.6 조전 전용 노드
+
+각 데이터 노드에서 작업한 결과물을 모아서 돌려주는 작업은 생각보다 큰 부하를 줄 수 있다.
+서버 자원에 여유가 있다면 읽기 작업을 담당하는 조정 전용 노드와 쓰기 작업을 담당하는 조정 전용 노드를 분리하는 것도 좋은 방법이다.
+
+#### 5.2.7 한 서버에 여러 프로세스 띄우기
+
+한 서버에 여러 프로세스를 띄우는 대상은 마스터 후보 역할을 하는 프로세스가 아닌 데이터 노드여야한다.
+
+프로세스 기동을 위해서는 반드시 cluster.routing.allocation.same_shard.host: true 설정을 지정해야 한다.
+이 설정은 샤드 할당 시 같은 샤드의 주 샤드와 복제본 샤드가 한 서버에 몰리지 않도록 조정해 준다.
+같은 서버를 확인하는 기준은 호스트 이름과 주소다.
 
 ## 5.3 보안 기능 적용
 
+```sh
+# pem 형식 ca 인증서 생성
+bin/elasticsearch-certutil ca --silent --pem -out config/certs/ca.zip
+bin/elasticsearch-certutil cert --silent --pem -out config/certs/certs.zip --in config/certs/instances.yml --ca-cert config/certs/ca/ca.crt --ca-key config/certs/ca/ca.key;
+openssl x509 -in es01.crt -text -noout
 
+# .p12 형식 ca 인증서 생성
+bin/elasticsearch-certutil ca
+bin/elasticsearch-certutil cert --ca elastic-stack-ca.p12
+openssl pkcs12 -in elastic-stack-ca.p12 -nodes
+
+# 키바나 계정의 비밀번호 등록
+bin/kibana-keystore create
+bin/kibana-keystore add elasticsearch.password
+
+# .p12 파일의 암호 추가
+bin/elasticsearch-keystore add xpack.security.http.ssl.keystore.secure_password
+```

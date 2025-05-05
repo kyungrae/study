@@ -1188,8 +1188,8 @@ That majority can safely form a quorum.
 Most of consensus algorithms (VSR, Paxos, Raft, and Zab) don't directly use the formal model described here.
 Instead, they decide on a sequence of values, which makes them total order broadcast algorithms.
 
-Remember that total order broadcast requires message to be delivered exactly once, in the smae order, to all nodes.
-If you think about it, this is equivalent to performing several rounds of consensus: in each round, nodes propse the message that they want to send nextm and then decide on the next message to be delivered in the total order.
+Remember that total order broadcast requires message to be delivered exactly once, in the same order, to all nodes.
+If you think about it, this is equivalent to performing several rounds of consensus: in each round, nodes propose the message that they want to send next and then decide on the next message to be delivered in the total order.
 
 ##### Epoch numbering and quorums
 
