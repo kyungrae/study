@@ -1322,11 +1322,11 @@ GET kibana_sample_data_ecommerce/_search
 
 ## 5. 서비스 환경에 클러스터 구성
 
-## 5.1 운영 환경을 위한 설정과 클러스터 구성
+### 5.1 운영 환경을 위한 설정과 클러스터 구성
 
-### 5.1.1 노드 설정과 노드 역할
+#### 5.1.1 노드 설정과 노드 역할
 
-#### 노드 역할
+##### 노드 역할
 
 - master eligible node  
 마스터 후보 노드 중에서 선거를 통해 마스터 노드를 선출된다. 마스터 노드는 클러스터를 관리하는 역할을 수행한다.
@@ -1339,7 +1339,7 @@ GET kibana_sample_data_ecommerce/_search
 클라이언트 요청을 받아서 다른 노드에 요청을 분배하고 클라이언트에게 최종 응답을 돌려주는 노드를 조정 노드라고 한다.
 기본적으로 모든 노드가 조정 역할을 수행한다. 마스터나 데이터 등 주요 역할을 수행하지 않고 조정 역할만 수행하는 노드는 조정 전용 노드라고 부른다.
 
-#### config/elasticserarch.yml
+##### config/elasticserarch.yml
 
 ```yml
 # 노드 역할을 지정하는 설정이다. master, data, ingest 등을 0개 이상 조합해 지정한다. []와 같이 내용을 비워 두면 조정 전용 노드가 된다. 
@@ -1481,7 +1481,7 @@ split brain 문제를 방지하기 위해 투표 구성원으로부터 과반의
 이 설정은 샤드 할당 시 같은 샤드의 주 샤드와 복제본 샤드가 한 서버에 몰리지 않도록 조정해 준다.
 같은 서버를 확인하는 기준은 호스트 이름과 주소다.
 
-## 5.3 보안 기능 적용
+### 5.3 보안 기능 적용
 
 ```sh
 # pem 형식 ca 인증서 생성
@@ -1501,3 +1501,291 @@ bin/kibana-keystore add elasticsearch.password
 # .p12 파일의 암호 추가
 bin/elasticsearch-keystore add xpack.security.http.ssl.keystore.secure_password
 ```
+
+## 6 클러스터 운영
+
+### 6.1 클러스터 설정 API
+
+```HTTP
+GET /_cluster/settings
+
+PUT /_cluster/settings
+{
+  "persistent": {
+    "indices.breaker.total.limit: "70%"
+  },
+  "transient": {
+    "cluster.routing.allocation.enable": "primaries",
+    "indices.breaker.total.limit": "90%"
+  }
+}
+```
+
+### 6.2 cat API를 통한 클러스터 관리와 모니터링
+
+cat API는 터미널에서 사람이 조회했을 때 보기 편한 형태로 응답하는 것이 목적이다.
+
+```HTTP
+GET _cat/health
+GET _cat/indices
+GET _cat/nodes
+GET _cat/shards
+GET _cat/segments
+GET _cat/recovery
+GET _cat/allocation
+GET _cat/thread_pool
+GET _cat/master
+```
+
+### 6.3 인덱스 운영 전략
+
+#### 6.3.3 시계열 인덱스 이름
+
+시계열 데이터를 색인한다면 인덱스 이름에 시간값을 넣는 방법을 고려하자.
+하나의 인덱스에 데이터를 색인했다면 range 쿼리를 이용해서 데이터를 백업하고 delete by query로 삭제를 수행해야 한다.
+하지만 시계열 이름을 가진 인덱스라면 인덱스를 통째로 백업하고 삭제하면 그만이다.
+
+성능면에서 세그먼트 병합을 지속적으로 수행할 필요가 없다.
+세그먼트가 고정되면 검색 시 캐시 적중율도 높아진다.
+또한 검색 대상이 될 인덱스를 지정하는 것만으로도 검색 범위를 좁힐 수 있다.
+
+#### 6.3.4 alias
+
+인덱스를 다른 이름으로 가리키도록 하는 기능이다.
+
+```HTTP
+POST _alias
+{
+  "actions": [
+    {
+      "add": {
+        "index": "my_index",
+        "alias": "my_alias_name"
+      }
+    },
+    {
+      "add": {
+        "index": "my_index2",
+        "alias": "my_alias_name",
+        "is_write_index": true
+      }
+    }
+  ]
+}
+```
+
+서비스에 직접 활용되는 데이터를 들고 있는 인덱스나, 요건 등이 변할 것이 예상되는 인덱스라면 모두 alias를 사전에 지정하는 것이 좋다.
+매핑이나 설정 등에 큰 변화가 필요할 때 새 인덱스를 미리 만들고 alias가 가르키는 인덱스만 변경하면 운영 중에 새 인덱스로 넘어갈 수 있다.
+
+#### 6.3.5 rollover
+
+하나의 alias에 여러 인덱스를 묶고 한 인덱스에만 is_write_true를 지정한 구성은 쓰기를 담당하는 인덱스 내 샤드의 크기가 너무 커지면 새로운 인덱스를 생성해서 같은 alias 안에 묶은 뒤 is_write_true를 새 인덱스로 옮기는 방식으로 운영한다.
+rollover는 이러한 작업을 묶어서 수행하는 기능이다.
+
+```HTTP
+POST [rollover 대상]/_rollover
+```
+
+rollover 수행할 alias 내 is_write_true 인덱스의 이름은^.*-\d+$ 패턴을 따라야 한다.
+인덱스를 처음 생성할 때에 인덱스 이름에 간단한 날짜 시간 계산식을 포함시켜 생성할 수 있다.
+
+```HTTP
+PUT %3Ctest-index-%7Bnow%2Fd%7D-000001%3E
+```
+
+#### 6.3.6 데이터 스트림
+
+데이터 스트림은 내부적으로 여러 개의 인덱스로 구성되어 있다.
+검색을 수행할 때는 해당 데이터 스트림에 포함된 모든 인덱스를 대상으로 검색을 수행하고, 문서를 추가 색인할 떄는 가장 최근에 생성된 단일 인덱스에 새 문서가 들어간다.
+롤 오버 시에는 최근 생성된 인덱스의 이름 끝 숫자를 하나 올린 새 인덱스가 생성된다.
+
+```mermaid
+flowchart
+  subgraph stream[data stream]
+    stream1[.ds-data-2025.05.09.000001] --> stream2[.ds-data-2025.05.10.000002] --> stream3[.ds-data-2025.05.11.000003]
+  end
+  write@{ shape: sm-circ, label: "Small start" } --쓰기요청--> stream3
+  read@{ shape: sm-circ, label: "Small start" } --읽기요청--> stream
+```
+
+데이터 스트림을 구성하는 인덱스는 뒷받침 인덱스라고 부르고 hidden 속성이다.
+인덱스 이름 패턴은 .ds-<데이터 스트림 이름>-<yyyy.MM.dd>-<세대 수>다.
+반드시 인덱스 템플릿과 연계해서 생성해야 하는 점, 문서 추가는 가능하지만 업데이트 작업은 불가능하다는 점, 반드시 @tiemstamp 필드가 포함된 문서만을 취급한다는 점도 alias를 통한 구성과 다른다.
+
+ILM(Index Lifecycle Management)과의 연동 자체가 필수가 아니나 데이터 스트림 기능 자체가 ILM과의 연계를 염두에 두고 개발된 기능이다.
+
+```HTTP
+PUT _ilm/policy/test-ilm-policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "min_age": "0ms",
+        "actions": {
+          "rollover": {
+            "max_primary_shard_size": "4gb",
+            "max_age": "1d"
+          }
+        }
+      },
+      "delete": {
+        "min_age": "15d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+
+PUT _component_template/test-mappings
+{
+  "template": {
+    "mappings": {
+      "properties": {
+        "@timestampe": {
+          "type": "date"
+        }
+      }
+    }
+  }
+}
+
+PUT _component_template/test-settings
+{
+  "template": {
+    "settings": {
+      "index.lifecycle.name": "test-ilm-policy",
+      "number_of_shards": "2",
+      "number_of_replicas": "1"
+    }
+  }
+}
+
+PUT _index_template/test-data-stream-template
+{
+  "index_patterns": ["my-data-stream-*"],
+  "data_stream": {},
+  "composed_of": ["test-mappings", "test-settings"]
+}
+```
+
+데이터 스트림은 특정한 시스템의 모니터링용 지표 데이터를 수집하기 위한 용도 등 그냥 문제 시간대의 데이터를 버려도 큰 문제가 되지 않는 경우에 사용하기 좋다.
+
+#### 6.3.7 reindex
+
+reindex는 원본 인덱스 내 문선의 _source를 읽ㅇ서 대상 인덱스에 새로 색인하는 작업이다.
+reindex 작업도 wait_for_completion=false를 지정해서 작업을 tasks에 등록하고 비동기적으로 실행할 수 있다.
+
+```HTTP
+POST _reindex
+{
+  "source": {
+    "index": "source_index",
+    "query": {
+
+    }
+  },
+  "dest": {
+    "idnex": "target_index"
+  },
+  "conflicts": "abort"
+}
+
+POST _reindex
+{
+  "source": {
+    "index": "source_index"
+  },
+  "dest": {
+    "idnex": "target_index"
+  },
+  "script": {
+    "lang": "painless",
+    "source": """
+      ctx._source.field_one = 'test';
+      ctx._source.field_two--;
+      ctx._source.field_three = ctx._source.field_two;
+    """
+  }
+}
+```
+
+#### 6.3.8 shrink & split
+
+새 인덱스 생성 후에 원본 인덱스 세그먼트를 하드 링크하는 방식으로 작업이 진행된다.
+index.blocks.write 설정을 true로 지정해 읽기 저용 상태여야 한다.
+새 인덱스의 샤드는 원본 인덱스의 약수 또는 배수로 지정해야 한다.
+
+```HTTP
+POST [현재 인덱스 이름]/_shrink/[새로 생성할 인덱스 이름]
+PUT [현재 인덱스 이름]/_shrink/[새로 생성할 인덱스 이름]
+{
+  "settings": {
+    "index.number_of_replicas": 2,
+    "index.number_of_shards": 1
+  }
+}
+
+POST [현재 인덱스 이름]/_split/[새로 생성할 인덱스 이름]
+PUT [현재 인덱스 이름]/_split/[새로 생성할 인덱스 이름]
+{
+  "settings": {
+    "index.number_of_shards": 4
+  }
+}
+```
+
+#### 6.3.10 다중 필드
+
+특정 필드를 기존과 다른 방법으로 색인해야 하는 상황이 생긴다.
+다중 필드는 필드 하나에 여러 이름을 붙인 뒤 각각 다른 매핑을 적용해서 사용할 수 있게 해준다.
+다중 필드 매핑이 추가된 이우 들어오는 데이터부터 적용된다.
+
+```HTTP
+PUT multi-fields-test
+{
+  "mappings": {
+    "properties": {
+      "my_string_field": {
+        "type": "keyword"
+      }
+    }
+  }
+}
+
+PUT multi-fields-test/_mapping
+{
+  "properties": {
+    "my_string_field": {
+      "type": "keyword",
+      "fields": {
+        "text_standard": {
+          "type": "text",
+          "analyzer": "standard"
+        },
+        "test_whitespace": {
+          "type": "text",
+          "analyzer": "whitespace"
+        }
+      }
+    }
+  }
+}
+```
+
+### 6.4 샤드 운영 전략
+
+엘라스틱서치는 인덱스 매핑과 상태를 cluster state에 저장한다.
+따라서 많은 수의 인덱스와 샤드는 cluster state 크기를 크게 만든다.
+각 샤드는 힙 공간을 사용해야 하는 데이터가 있다.
+여기에는 세그먼트 레벨에 필요한 데이터 구조도 포함된다.
+세그먼트 관련 오버헤드의 중요한 특성은 세그먼트가 작을수록 오버헤드가 크다는 것이다.
+또한 샤드를 늘릴수록 복제본 샤드도 늘어난다.
+
+샤드 하나의 크기가 너무 커지는 것도 문제다.
+재기동이나 장애 상황에 샤드 복구에 많은 시간이 소요된다.
+서비스 성능도 쉽게 체감될 정도로 감소한다.
+샤드 하나의 크기를 20~40GB 크기 적절하다고 얘기하고 힙 1GB에 20개 이하의 샤드를 들고 있는 것을 추천한다.
+
+### 6.5 롤링 리스타트
