@@ -222,6 +222,8 @@ Each child is responsible for a continuous range of keys, and the keys between t
 
 ### Transaction Processing or Analytics?
 
+Transaction processing just means allowing clients to make low-latency reads and writes—as opposed to batch processing jobs, which only run periodically.
+
 | Property | Transaction processing systems (OLTP) | Analytics systems (OLAP) |
 |---|---|---|
 | Main read pattern | Small number of records per query, fetched by key | Aggregate over large number of records |
@@ -232,7 +234,54 @@ Each child is responsible for a continuous range of keys, and the keys between t
 
 This separate database was called a data warehouse.
 
+#### Data warehousing
+
+These OLTP systems are usually expected to be highly available and to process transactions with low latency, since they are often critical to the operation of the business.
+Database administrators are usually reluctant to let business analysts run ad hoc analytic queries on an OLTP database, since those queries are often expensive, scanning large parts of the dataset, which can harm the performance of concurrently executing transactions.
+
+```mermaid
+flowchart
+  u1@{ shape: sm-circ, label: "Small start" } --> Ecommerce
+  u2@{ shape: sm-circ, label: "Small start" } --> Stock
+  u3@{ shape: sm-circ, label: "Small start" } --> Vehicle
+  subgraph Ecommerce[Ecommerce site]
+    SalesDB[(Sales DB)]
+  end
+  subgraph Stock[Stock-keeping app]
+    InventoryDB[(Inventory DB)]
+  end
+  subgraph Vehicle[Vehicle route planner]
+    GeoDB[(Geo DB)]
+  end
+
+  subgraph Datawarehouse[ ]
+    transform1[transform] --load--> DataWarehouse[(Data warehouse)]
+    transform2[transform] --load--> DataWarehouse
+    transform3[transform] --load--> DataWarehouse
+  end
+  SalesDB --extract--> transform1
+  InventoryDB --extract--> transform2
+  GeoDB --extract--> transform3
+  u4@{ shape: sm-circ, label: "Small start" } --query--> DataWarehouse
+```
+
+A big advantage of using a separate data warehouse, rather than querying OLTP systems directly for analytics, is that the data warehouse can be optimized for analytic access patterns.
+
+#### Stars and Snowflakes: Schemas for Analytics
+
+Facts are captured as individual events, because this allows maximum flexibility of analysis later.
+However, this means that the fact table can become extremely large.
+
+Some of the columns in the fact table are attributes.
+Other columns in the fact table are foreign key references to other tables, called dimension tables.
+As each row in the fact table represents an event, the dimensions represent the who, what, where, when, how, and why of the event.
+
+The name "star schema" comes from the fact that when the table relationships are visualized, the fact table is in the middle, surrounded by its dimension tables; the connections to these tables are like the rays of a star.
+
 ### Column-Oriented Storage
+
+If you have trillions of rows and petabytes of data in your fact tables, storing and querying them efficiently becomes a challenging problem.
+Although fact tables are often over 100 columns wide, a typical data warehouse query only accesses 4 or 5 of them at one time.
 
 The idea behind column-oriented storage is simple: don't store all the values from one row together, but store all the values from each column together instead.
 If each column is stored in a separate file, a query only needs to read and parse those columns that are used in that query, which can save a lot of work.
