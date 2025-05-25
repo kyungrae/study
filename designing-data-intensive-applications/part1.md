@@ -300,6 +300,13 @@ The difference is that materialized view is an actual copy of the query results,
 
 ## 4. Encoding and Evolution
 
+Application inevitably change over time.
+We should aim to build systems that make it easy to adapt to change(Evolvability).
+
+When a data format or schema changes, a corresponding change to application code often needs to happen.
+However, code changes often cannot happen instanteously.
+In order for the system to continue running smoothly, we need to maintain compatibility in both directions.
+
 - Backward compatibility  
   Newer code can read data that was written by older code.  
 - Forward compatibility  
@@ -319,13 +326,97 @@ The translation from the in-memory representation to a byte sequence is called e
 #### Language-Specific Formats
 
 Programming language-specific encodings(Serializable, Marshal, pickle) are restricted to a single programming language and often fail to provide forward and backward compatibility.
+Efficiency is also often an afterthought.
 
 #### JSON, XML, and Binary Variants
 
 Textual formats like JSON, XML, and CSV are widespread, and their compatibility depends on how you use them.
 These formats are somewhat vague about datatypes, so you have to be careful with things like number and binary strings.
 
-#### Thrift, Protocol Buffers and Avro
+##### Binary encoding
+
+Since they don't prescribe a schema, they need to include all the object field names within the encoded data.
+Let's look at an example of MessagePack, a binary encoding for json.
+
+```json
+{
+  "userName": "Martin",
+  "favoriteNumber": 1337,
+  "interests": ["daydream", "hacking"]
+}
+```
+
+![message pack](./images/messagepack.png)
+
+#### Thrift, Protocol Buffers
+
+Both Thrift and Protocol Buffers require a schema for any data that is encoded.
+To encode the data in json, you would describe the schema.
+
+```thrift
+struct Person {
+  1: required string username,
+  2: optional i64 favoriteNumber,
+  3: optional list<string> interests
+}
+```
+
+```proto
+message Person {
+  required string user_name = 1;
+  optional int64 favorite_number = 2;
+  repeated string interests = 3;
+}
+```
+
+Thrift and Protocol Buffers each come with a code generation tool that takes a schema definition like the ones shown here, and produces classes that implement the schema in various programming languages.
+
+The big difference compared to MessagePack is that there are no field name.
+Instead, the encoded data contains field tags, which are number.
+
+![Thrift](./images/thrift.png)
+![Protocol buffer](./images/protocol_buffer.png)
+
+#### Avro
+
+```avro
+record Person {
+  string userName
+  union { null, long } favoriteNumber = null;
+  array<string> interests;
+}
+```
+
+```json
+
+{
+  "type": "record",
+  "name": "Person",
+  "fields": [
+    {
+      "name": "userName",
+      "type": "string"
+    },
+    {
+      "name": "favoriteNumber",
+      "type": ["null","long"],
+      "default": null
+    },
+    {
+      "name": "interests",
+      "type": {
+        "type": "array", 
+        "items": "string"
+      }
+    }
+  ]
+}
+```
+
+![avro](./images/avro.png)
+
+To parse the binary data, you go through the fields in the order that they appear in the schema and use the schema to tell you the datatype of each field.
+This means that the binary data can only be decoded correctly if the code reading the data is using the exact same schema as the code that wrote the data.
 
 Binary schema-driven formats like Thrift, Protocol Buffers, and Avro allow compact, efficient encoding with clearly defined forward and backward compatibility semantics.
 The schemas can be useful for documentation and code generation in statically typed languages.
