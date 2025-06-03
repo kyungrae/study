@@ -1521,6 +1521,8 @@ PUT /_cluster/settings
 }
 ```
 
+persistent와 transient에 동일한 설정이 지정되면 transient 설정이 우선 적용된다.
+
 ### 6.2 cat API를 통한 클러스터 관리와 모니터링
 
 cat API는 터미널에서 사람이 조회했을 때 보기 편한 형태로 응답하는 것이 목적이다.
@@ -1542,7 +1544,7 @@ GET _cat/master
 #### 6.3.3 시계열 인덱스 이름
 
 시계열 데이터를 색인한다면 인덱스 이름에 시간값을 넣는 방법을 고려하자.
-하나의 인덱스에 데이터를 색인했다면 range 쿼리를 이용해서 데이터를 백업하고 delete by query로 삭제를 수행해야 한다.
+만약 하나의 인덱스에 데이터를 색인했다면 range 쿼리를 이용해서 데이터를 백업하고 delete by query로 삭제를 수행해야 한다.
 하지만 시계열 이름을 가진 인덱스라면 인덱스를 통째로 백업하고 삭제하면 그만이다.
 
 성능면에서 세그먼트 병합을 지속적으로 수행할 필요가 없다.
@@ -1615,6 +1617,7 @@ flowchart
 ILM(Index Lifecycle Management)과의 연동 자체가 필수가 아니나 데이터 스트림 기능 자체가 ILM과의 연계를 염두에 두고 개발된 기능이다.
 
 ```HTTP
+# ILM
 PUT _ilm/policy/test-ilm-policy
 {
   "policy": {
@@ -1638,6 +1641,7 @@ PUT _ilm/policy/test-ilm-policy
   }
 }
 
+# 컨포넌트 템플릿
 PUT _component_template/test-mappings
 {
   "template": {
@@ -1651,6 +1655,7 @@ PUT _component_template/test-mappings
   }
 }
 
+# 컨포넌트 템플릿
 PUT _component_template/test-settings
 {
   "template": {
@@ -1662,6 +1667,7 @@ PUT _component_template/test-settings
   }
 }
 
+# 인덱스 템플릿
 PUT _index_template/test-data-stream-template
 {
   "index_patterns": ["my-data-stream-*"],
@@ -1674,7 +1680,8 @@ PUT _index_template/test-data-stream-template
 
 #### 6.3.7 reindex
 
-reindex는 원본 인덱스 내 문선의 _source를 읽ㅇ서 대상 인덱스에 새로 색인하는 작업이다.
+reindex는 원본 인덱스 내 문선의 _source를 읽어서 대상 인덱스에 새로 색인하는 작업이다.
+reindex는 작업 특성상 매핑에서 _source가 활성화되어 있어야 한다.
 reindex 작업도 wait_for_completion=false를 지정해서 작업을 tasks에 등록하고 비동기적으로 실행할 수 있다.
 
 ```HTTP
@@ -1707,31 +1714,6 @@ POST _reindex
       ctx._source.field_two--;
       ctx._source.field_three = ctx._source.field_two;
     """
-  }
-}
-```
-
-#### 6.3.8 shrink & split
-
-새 인덱스 생성 후에 원본 인덱스 세그먼트를 하드 링크하는 방식으로 작업이 진행된다.
-index.blocks.write 설정을 true로 지정해 읽기 저용 상태여야 한다.
-새 인덱스의 샤드는 원본 인덱스의 약수 또는 배수로 지정해야 한다.
-
-```HTTP
-POST [현재 인덱스 이름]/_shrink/[새로 생성할 인덱스 이름]
-PUT [현재 인덱스 이름]/_shrink/[새로 생성할 인덱스 이름]
-{
-  "settings": {
-    "index.number_of_replicas": 2,
-    "index.number_of_shards": 1
-  }
-}
-
-POST [현재 인덱스 이름]/_split/[새로 생성할 인덱스 이름]
-PUT [현재 인덱스 이름]/_split/[새로 생성할 인덱스 이름]
-{
-  "settings": {
-    "index.number_of_shards": 4
   }
 }
 ```
@@ -1789,3 +1771,9 @@ PUT multi-fields-test/_mapping
 샤드 하나의 크기를 20~40GB 크기 적절하다고 얘기하고 힙 1GB에 20개 이하의 샤드를 들고 있는 것을 추천한다.
 
 ### 6.5 롤링 리스타트
+
+- 샤드 할당 비활성화
+- flush 수행
+- 노드 재기동
+- 샹드 할당 활성화
+- green 상태 대기
