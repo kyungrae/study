@@ -10,6 +10,8 @@ A data-intensive application is typically built from standard building blocks th
 - Send a message to another process, to be handled asynchronously (stream processing)
 - Periodically crunch a large amount of accumulated data (batch processing)
 
+Most engineers wouldn't dream of writing a new data storage engine from scratch.
+There are many database systems with different characteristics, because different applications have different requirements.
 We will start by exploring the fundamentals of what we are trying to achieve: reliable, scalable, and maintainable data systems.
 
 ### Thinking About Data Systems
@@ -31,12 +33,38 @@ flowchart
 
 ### Reliability
 
-The system should continue to work correctly (perform the correct function at the desired level of performance) even in the face of adversity(hard or soft-ware faults, and event human error)
+The system should continue to work correctly (perform the correct function at the desired level of performance) even in the face of adversity(hard or soft-ware faults, and event human error).
 
 - The application can perform the function that the user expected.
 - It can tolerate the user making mistakes or using the software in unexpected ways.
 - Its performance is good enough for the required use case, under the expected load and data volume.
 - The system prevent unauthorized access and abuse.
+
+The things that can go wrong are called _faults_, and system that anticipate faults and can cope with them are called _fault-tolerant_ or _resilient_. The former term is slightly misleading: it suggests that we would make a system tolerant of every possible kind of fault, which in reality is not feasible.
+So it only makes sense to talk about tolerating certain types of faults.
+
+A fault is usually defined as one component of the system deviating from its spec, whereas a failure is when the system as a whole stops providing the required service to the user.
+It is impossible to reduce the probability of a fault to zero; therefore it is usually best to design fault-tolerance mechanisms that prevent faults from causing failures.
+
+#### Hardware Faults
+
+Hard disks crash, RAM becomes faulty, the power grid has a blackout, someone unplugs the wrong network cable.
+Our first response is usually to add redundancy to the individual hardware components in order to reduce the failure rate of the system.
+
+There is a move toward systems that can tolerate the loss of entire machines, by using software fault-tolerance techniques in preference or in addition to hardware redundancy.
+Such systems also have operational advantages: a single-server system requires planned downtime if you need to reboot the machine, whereas a system that can tolerate machine failure can be patched one node at a time, without downtime of the entire system.
+
+#### Software Errors
+
+A runaway process that uses up some shared resource.
+A service that the system depends on that slows down, becomes unresponsive, or starts returning corrupted responses.
+
+#### Human Errors
+
+Even when operators have the best intentions, humans are known to be unreliable.
+
+Set up detailed and clear monitoring, such as performance metrics and error rates.
+In other engineering this is referred to as telemetry.
 
 ### Scalability
 
@@ -46,6 +74,7 @@ Discussing scalabiltiy means considering questions like "If the system grows in 
 
 #### Describing Load
 
+Load can be described with a few numbers which we call load parameters.
 The best choice of parameters depends on the architecture of your system: it may be requests per second to a web server, the ratio of reads to writes in a database, the number of simultaneously active users in chat room, the hit rate on a cache, the distribution of followers per user, or something else.
 
 #### Describing Performance
@@ -65,11 +94,11 @@ High percentiles of response time(tail latencies) are important because they dir
 Over time, many different people will work on the system, and they should all be able to work on it productively.
 
 - Operability  
-Make it easy for operations teams to keep the system running smoothly.
+  Make it easy for operations teams to keep the system running smoothly.
 - Simplicity  
-Make it easy for new engineers to understand the system, by removing as much as possible from the system.
+  Make it easy for new engineers to understand the system, by removing as much as possible from the system.
 - Evolvability  
-Make it easy for engineers to make changes to the system in the future, adapting it for unanticipated use cases as requirements change.
+  Make it easy for engineers to make changes to the system in the future, adapting it for unanticipated use cases as requirements change.
 
 ## 2. Data Models and Query Languages
 
@@ -210,7 +239,7 @@ We also require that each key only appears once within each merged segment file 
 - The LSM-tree algorithm can be slow when looking up keys that do not exist in the database. A Bloom filter is a memory-efficient data structure for approximating the contents of a set.
 - There are strategies to determin the order and timing of how SSTables are compacted and merged.
   - In size-tiered compaction, newer and smaller SSTables are successively merged into older and larger SSTables.
-  - In leveled compaction, the key range is split up into smaller SSTables and older data is moved  into separatee "levels," which allows the compaction to proceed more incrementally and use less disk space.
+  - In leveled compaction, the key range is split up into smaller SSTables and older data is moved into separatee "levels," which allows the compaction to proceed more incrementally and use less disk space.
 
 #### B-Tree
 
@@ -224,13 +253,13 @@ Each child is responsible for a continuous range of keys, and the keys between t
 
 Transaction processing just means allowing clients to make low-latency reads and writes—as opposed to batch processing jobs, which only run periodically.
 
-| Property | Transaction processing systems (OLTP) | Analytics systems (OLAP) |
-|---|---|---|
-| Main read pattern | Small number of records per query, fetched by key | Aggregate over large number of records |
-| Main write pattern | Random-access,low-latency writes from user input | Bulk import(ETL) or event stream |
-| Primarily used by | End user/customer, via web application | Internal analyst, for decision support |
-| What data represents | Latest state of data(current point in time) | History of events that happened over time |
-| Dataset size | Gigabytes to terabytes | Terabytes to petabytes |
+| Property             | Transaction processing systems (OLTP)             | Analytics systems (OLAP)                  |
+| -------------------- | ------------------------------------------------- | ----------------------------------------- |
+| Main read pattern    | Small number of records per query, fetched by key | Aggregate over large number of records    |
+| Main write pattern   | Random-access,low-latency writes from user input  | Bulk import(ETL) or event stream          |
+| Primarily used by    | End user/customer, via web application            | Internal analyst, for decision support    |
+| What data represents | Latest state of data(current point in time)       | History of events that happened over time |
+| Dataset size         | Gigabytes to terabytes                            | Terabytes to petabytes                    |
 
 This separate database was called a data warehouse.
 
@@ -308,7 +337,7 @@ However, code changes often cannot happen instanteously.
 In order for the system to continue running smoothly, we need to maintain compatibility in both directions.
 
 - Backward compatibility  
-  Newer code can read data that was written by older code.  
+  Newer code can read data that was written by older code.
 - Forward compatibility  
   Older code can read data that was written by newer code.
 
@@ -317,9 +346,9 @@ In order for the system to continue running smoothly, we need to maintain compat
 Program usually work with data in (at least) two different representations:
 
 1. In memory, data is kept in objects, structs, lists, arrays, hash tables, trees, and so on.
-These data structures are optimized for efficient access and manipulation by the CPU (typically using pointers).
+   These data structures are optimized for efficient access and manipulation by the CPU (typically using pointers).
 2. When you want to write data to a file or send it over the network, you have to encode it as some kind of self-contained sequence of bytes(for example, a JSON document).
-Since a pointer wouldn't make sense to any other process.
+   Since a pointer wouldn't make sense to any other process.
 
 The translation from the in-memory representation to a byte sequence is called encoding, and the reverse is called decoding.
 
@@ -388,7 +417,6 @@ record Person {
 ```
 
 ```json
-
 {
   "type": "record",
   "name": "Person",
@@ -399,13 +427,13 @@ record Person {
     },
     {
       "name": "favoriteNumber",
-      "type": ["null","long"],
+      "type": ["null", "long"],
       "default": null
     },
     {
       "name": "interests",
       "type": {
-        "type": "array", 
+        "type": "array",
         "items": "string"
       }
     }
@@ -424,7 +452,7 @@ However, they have the downside that needs to be decoded before it is human-read
 
 #### What is the writer's schema
 
-- Large file with lots of records  
+- Large file with lots of records
 - Database with individually written records
 - Sending records over a network connection
 
