@@ -87,6 +87,7 @@ services:
     volumes:
       - certs:/usr/share/elasticsearch/config/certs
       - esdata01:/usr/share/elasticsearch/data
+      - ./snapshot:/mnt/snapshot
     ports:
       - ${ES_PORT}:9200
     environment:
@@ -107,6 +108,7 @@ services:
       - xpack.security.transport.ssl.certificate_authorities=certs/ca/ca.crt
       - xpack.security.transport.ssl.verification_mode=certificate
       - xpack.license.self_generated.type=${LICENSE}
+      - path.repo=/mnt/snapshot
     mem_limit: ${ES_MEM_LIMIT}
     ulimits:
       memlock:
@@ -128,6 +130,7 @@ services:
     volumes:
       - certs:/usr/share/elasticsearch/config/certs
       - esdata02:/usr/share/elasticsearch/data
+      - ./snapshot:/mnt/snapshot
     environment:
       - node.name=es02
       - cluster.name=${CLUSTER_NAME}
@@ -147,6 +150,7 @@ services:
       - xpack.security.transport.ssl.verification_mode=certificate
       - xpack.license.self_generated.type=${LICENSE}
       - xpack.ml.use_auto_machine_memory_percent=true
+      - path.repo=/mnt/snapshot
     mem_limit: ${ES_MEM_LIMIT}
     ulimits:
       memlock:
@@ -168,6 +172,7 @@ services:
     volumes:
       - certs:/usr/share/elasticsearch/config/certs
       - esdata03:/usr/share/elasticsearch/data
+      - ./snapshot:/mnt/snapshot
     environment:
       - node.name=es03
       - cluster.name=${CLUSTER_NAME}
@@ -187,6 +192,7 @@ services:
       - xpack.security.transport.ssl.verification_mode=certificate
       - xpack.license.self_generated.type=${LICENSE}
       - xpack.ml.use_auto_machine_memory_percent=true
+      - path.repo=/mnt/snapshot
     mem_limit: ${ES_MEM_LIMIT}
     ulimits:
       memlock:

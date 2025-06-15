@@ -130,7 +130,7 @@ PUT [인덱스 이름]
 ```
 
 - number_of_shards: 인덱스가 데이터를 몇 개의 샤드로 쪼갤지 지정한다.
-- number_of_replicas: 주 샤드 하나당 복제본 샤드를 몇 개 둘 것인지 지정한다.
+- number_of_replicas: primary 샤드 하나당 replica 샤드를 몇 개 둘 것인지 지정한다.
 - refresh_interval: 해당 인덱스를 대상으로 refresh를 얼마나 자주 수행할지 지정한다.
 
 ### 3.2 매핑과 필드 타입
@@ -362,7 +362,7 @@ PUT _index_template/[template 이름]
 
 라우팅은 엘라스틱서치가 인덱스를 구성하는 샤드 중 몇 번 샤드를 대상으로 작업을 수행할지 지정하기 위해 사용한다.
 라우팅 값은 문서를 색인할 때 문서마다 하나씩 지정할 수 있다.
-작업 대상 샤드 번호는 지정된 라우팅 값을 해시한 후 주 샤드의 개수로 나머지 연산을 수행한 값이 된다.
+작업 대상 샤드 번호는 지정된 라우팅 값을 해시한 후 primary 샤드의 개수로 나머지 연산을 수행한 값이 된다.
 라우팅 값을 지정하지 않고 문서를 색인하는 경우 라우팅 기본값은 _id 값이 된다.
 색인 시 라우팅 값을 지정했다면 조회, 업데이트, 삭제, 검색 등의 작업에서도 똑같이 라우팅을 지정해야 한다.
 
@@ -455,7 +455,7 @@ DELETE [인덱스 이름]/_update/[_id]
 bulk API는 요청 본문을 JSON이 아니라 NDJSON 형태로 만들어서 보낸다.
 NDJSON은 여러 줄의 JSON을 줄바꿈 문자로 구분한다.
 Content-Type 헤더도 application/json 대신 application/x-ndjson을 사용해야 한다.
-동일한 인덱스, _id, 라우팅 조합을 가진 요청은 동일한 주 샤드로 요청돼 bulk API 기술된 순서대로 실행된다.
+동일한 인덱스, _id, 라우팅 조합을 가진 요청은 동일한 primary 샤드로 요청돼 bulk API 기술된 순서대로 실행된다.
 
 ```HTTP
 POST _bulk
@@ -573,7 +573,7 @@ DELETE .tasks/_doc/[task id]
 
 slices 매개변수를 지정하면 검색과 업데이트를 지정한 개수로 쪼개 병렬적으로 수행한다.
 auto로 지정하면 엘라스틱서치가 적절한 개수를 지정해서 작업을 병렬 수행한다.
-보통은 지정한 인덱스의 주 샤드 수가 슬라이스의 수가 된다.
+보통은 지정한 인덱스의 primary 샤드 수가 슬라이스의 수가 된다.
 
 ```HTTP
 POST [인덱스 이름]/_update_by_query?slices=auto
@@ -1478,7 +1478,7 @@ split brain 문제를 방지하기 위해 투표 구성원으로부터 과반의
 한 서버에 여러 프로세스를 띄우는 대상은 마스터 후보 역할을 하는 프로세스가 아닌 데이터 노드여야한다.
 
 프로세스 기동을 위해서는 반드시 cluster.routing.allocation.same_shard.host: true 설정을 지정해야 한다.
-이 설정은 샤드 할당 시 같은 샤드의 주 샤드와 복제본 샤드가 한 서버에 몰리지 않도록 조정해 준다.
+이 설정은 샤드 할당 시 같은 샤드의 primary 샤드와 replica 샤드가 한 서버에 몰리지 않도록 조정해 준다.
 같은 서버를 확인하는 기준은 호스트 이름과 주소다.
 
 ### 5.3 보안 기능 적용
@@ -1760,20 +1760,442 @@ PUT multi-fields-test/_mapping
 
 엘라스틱서치는 인덱스 매핑과 상태를 cluster state에 저장한다.
 따라서 많은 수의 인덱스와 샤드는 cluster state 크기를 크게 만든다.
-각 샤드는 힙 공간을 사용해야 하는 데이터가 있다.
-여기에는 세그먼트 레벨에 필요한 데이터 구조도 포함된다.
+샤드 하나당 루씬 인덱스가 하나씩 더 뜨며 힙을 차지한다.
 세그먼트 관련 오버헤드의 중요한 특성은 세그먼트가 작을수록 오버헤드가 크다는 것이다.
-또한 샤드를 늘릴수록 복제본 샤드도 늘어난다.
+또한 샤드를 늘릴수록 replica 샤드도 늘어난다.
 
 샤드 하나의 크기가 너무 커지는 것도 문제다.
 재기동이나 장애 상황에 샤드 복구에 많은 시간이 소요된다.
-서비스 성능도 쉽게 체감될 정도로 감소한다.
 샤드 하나의 크기를 20~40GB 크기 적절하다고 얘기하고 힙 1GB에 20개 이하의 샤드를 들고 있는 것을 추천한다.
 
 ### 6.5 롤링 리스타트
 
-- 샤드 할당 비활성화
-- flush 수행
-- 노드 재기동
-- 샹드 할당 활성화
-- green 상태 대기
+엘라스틱서치 운영 중에는 롤링 리스타트를 수행할 일이 매우 많다.
+롤링 리스트는 크게 샤드 할당 비활성화, flush 수행, 노드 재기동, 샤드 할당 활성화, green 상태 대기 순으로 수행된다.
+
+롤링 리스타드 과정에서 재기동한 노드가 클러스터에 합류하면 노드가 들고 있던 샤드를 replica 샤드로 다시 띄우기 때문에 replica 샤드를 추가할 필요가 없다.
+
+```HTTP
+PUT _cluster/settings
+{
+  "transient": {
+    "cluster.routing.allocation.enable": "primaries"
+  }
+}
+```
+
+- all: 모든 종류의 샤드 할당을 허용한다.
+- primaries: 주 샤드의 할당만 허용한다.
+- new_primaries: 새로 생성된 인덱스의 주 샤드 할당만을 허용한다.
+- none: 모든 샤드 할당을 불허한다.
+
+### 6.6 스냅샷과 복구
+
+#### 6.6.1 스냅샷 저장소 등록과 설정
+
+##### 공유 파일 시스템 저장소
+
+fs 타입은 공유 파일 시스템을 저장소 타입으로 사용할 때 이용한다.
+마운트 경로는 elasticsearch.yml에 path.repo 설정으로 등록해야 한다.
+
+```HTTP
+PUT _snapshot/[저장소 이름]
+{
+  "type": "fs",
+  "settings": {
+    "location": "/mnt/snapshot"
+  }
+}
+```
+
+```yaml
+path:
+  repo:
+    - /mnt/snapshot
+```
+
+##### HDFS 저장소
+
+```sh
+bin/elasticsearch-plugin install repository-hdfs
+```
+
+```HTTP
+PUT _snapshot/[저장소 이름]
+{
+  "type": "hdfs",
+  "settings": {
+    "uri": "hdfs://uri",
+    "path": "path",
+    "conf": {
+      "dfs.nameservices": ""
+    }
+  }
+}
+```
+
+##### 소스 전용 저장소
+
+소스 전용 저장소는 스냅샷에 데이터의 필드 값과 인덱스 메타데이터만을 저장한다.
+
+```HTTP
+PUT _snapshot/[저장소 이름]
+{
+  "type": "source",
+  "settings": {
+    "delegate_type": "fs",
+    "location": "path"
+  }
+}
+```
+
+##### 저장소 분리
+
+엘라스틱서치의 스냅샷은 증분 백업 방식으로 동작한다.
+이를 위해 스냅샷 작업을 시작할 때 저장소 내 다른 모든 스냅샷의 정보를 메모리로 올리는 작업을 선행한다.
+엘라스틱서치는 저장소가 무거워지는 것을 막기 위해 한 저장소당 최대 스냅샷 개수를 제한한다.
+
+#### 6.6.2 스냅샷을 생성하고 조회하기
+
+```HTTP
+# 스냅샷 생성
+PUT _snapshot/local_snapshot/snapshot20250607?wait_for_completion=false
+{
+  "indices": "kibana_sample_data_logs,kibana_sample_data_flights"
+}
+
+# 스냅샷 조회
+GET _snapshot/local_snapshot/snapshot20250607
+```
+
+스냅샷을 찍을 때 요청 본문에 include_global_state라는 설정을 지정할 수 있다. 이는 persistent 클러스터 설정이나 내부 시스템 인덱스의 내용 등 전역 상태를 스냅샷에 저장할 것인지 지정한다. include_global_state 지정 시 저장되는 전역 상태의 종류는 다음과 같다.
+
+- persistent 클러스터 설정
+- 인덱스 템플릿
+- 레거시 템플릿
+- 인제스트 파이프라인
+- 인덱스 생명 주기 정책
+- 내부 시스템 인덱스의 데이터
+
+```HTTP
+# 시스템 인덱스 조회
+GET _features
+```
+
+#### 6.6.3 스냅샷에서 인덱스 복구 & 삭제하기
+
+```HTTP
+# 스냅샷에서 인덱스 복구하기
+POST _snapshot/[저장소 이름]/[스냅샷 이름]/_restore
+
+# 스냅샷 삭제하기
+DELETE _snapshot/[저장소 이름]/[스냅샷 이름]
+```
+
+한 저장소에 많은 스냅샷이 쌓이면 성능이 저하된다. 주기적으로 스냅샷을 삭제하며 관리하면 좋다.
+
+#### 6.6.5 스냅샷 생명 주기 관리
+
+만료된 스냅샷을 삭제하는 task를 특정 스케줄에 맞춰 수행한다.
+
+```HTTP
+PUT _slm/policy/[정책 이름]
+{
+  "name": "<my-daily-snapshot-{now/d}>",
+  "schedule": "0 30 17 * * ?",
+  "repository": "fs-repo0",
+  "config": {
+    "indices": [
+      "<my-index-{now/d-2d}-*>"
+    ],
+    "include_global_state": false
+  },
+  "retention": {
+    "expire_after": "7d",
+    "max_count": 100
+  }
+}
+```
+
+```HTTP
+PUT _cluster/settings
+{
+  "persistent": {
+    "slm.retetion_schedule": "0 30 10 ** ?"
+  }
+}
+```
+
+### 6.7 명시적으로 세그먼트 병합하기
+
+세그먼트 병합을 수행한 이후에는 검색 성능의 향상, 디스크나 메모리 등의 자원 절약을 기대할 수 있다.
+세그먼트 병합은 더 이상 추가 데이터가 색인되지 않는다는 것이 보장될 때 수행해야 한다.
+인덱스에 변화가 없다면 단일 세그먼트를 유지하는 것이 가장 좋다.
+
+```HTTP
+POST [인덱스 이름]/_forcemerge?max_num_segments=1
+```
+
+### 6.8 샤드 할당 필털이과 데이터 티어 구조
+
+#### 6.8.1 노드 속성과 샤드 할당 의식
+
+엘라스틱서치를 기동할 때 노드에 원하는 커스터 속성을 지정한 뒤 이를 기반으로 샤드 할당을 제어할 수 있다.
+이를 커스터 노드 속성을 샤드 할당 의식 속성(awareness attributes)으로 지정한다고 표현한다.
+
+```yaml
+node.attr.my_rack_id: rack_one
+```
+
+```sh
+bin/elasticsearch -Enode.attr.my_rack_id=rack_one
+```
+
+```HTTP
+GET _cat/nodeattrs?v
+```
+
+샤드 할당 시 이러한 속성을 고려하라고 클러스터에게 알려줘야 한다.
+
+```HTTP
+PUT _cluster/_settings
+{
+  "persistent": {
+    "cluster.routing.allocation.awareness.attributes": "my_rack_id,my_other_id"
+  }
+}
+```
+
+my_rack_id가 rack_one인 노드 부분 집합과 rack_two인 노드 부분 집합으로 나눠 클러스터를 기동하면 엘라스틱서치는 동일한 샤드에 대해 주 샤드와 복제복 샤드를 서로 다른 부분 집합에 배분한다.
+
+#### 6.8.2 클러스터 단위 샤드 할당 필터링
+
+노드 속성을 조합해서 특정 속성을 가진 노드에만 샤드를 할당하거나 할당하지 않도록 지정할 수 있다.
+
+```HTTP
+# 클러스터 단위 샤드 할당 필터링
+PUT _cluster/settings
+{
+  "persistent": {
+    "cluster.routing.allocation.include.my_rack_id": "rack_one,rack_two"
+  }
+}
+
+# 인덱스 단위 샤드 할당 필터링
+PUT [인덱스 이름]/_settings
+{
+  "index.routing.allocation.include.my_rack_id": "rack_one, rack_two",
+  "index.routing.allocation.require.my_rack_id": "attr_one"
+}
+```
+
+- include: 지정한 속성들 중 적어도 하나 이상을 노드 속성으로 가진 노드에 샤드를 할당한다.
+- require: 지정한 속성들을 모두 노드 속성으로 가진 노드에 샤드를 할당한다.
+- exclude: 지정한 속성들 중 하나라도 노드 속성으로 가진 노들에 샤드를 할당하지 않는다.
+
+노드 속성으로는 커스텀 속성 외에도 빌트인 내장 속성을 사용할 수 있다(\_name, \_host_ip, \_plubish_ip, \_ip, \_host, \_id).
+클러스터 단위 샤드 할당 필터링을 사용하는 가장 전형적인 예는 특정 노드를 클러스터에서 제거할 때다.
+
+```HTTP
+PUT _cluster/settings
+{
+  "persistent": {
+    "cluster.routing.allocation.exclude_ip": "10.0.0.1"
+  }
+}
+```
+
+#### 6.8.4 데이터 티어 구조
+
+데이터 티어 구조는 데이터 노드를 용도 및 성능별로 hot-warm-cold-frozen 티어로 구분해 클러스터를 구성하는 방법이다.
+노드 역할로 data를 지정하지 않고 data_content, data_hot, data_warm, data_cold, data_frozen을 지정해 클러스터를 구성한다.
+
+- data_content: 시계열 데이터가 아닌 데이터를 담는 노드다. 실시간 서비스용 데이터 등 높은 읽기, 쓰기 성능이 요구되는 사용처를 위한 역할이다.
+- data_hot: 시계열 데이터 중 최근 데이터를 담당하는 노드다. 현재 업데이트가 잦고 읽기 작업도 가장 많은 상태인 데이터를 담당한다.
+- data_warm: data_hot에 배정된 인덱스보다 기간이 오랜된 인덱스를 담당하는 노드다. 인덱스에 업데이트를 수행할 수는 있지만 상대적으로 드물게 작업이 수행되며 성능이 덜 요구되는 상태의 인덱스를 배정받는 역할이다.
+- data_cold: 더 이상 업데이트를 수행하지 않는 읽기 전용 인덱스를 담당하는 노드다.
+- data_frozen: 인덱스를 검색 가능한 스냅샷으로 변환한 뒤 이를 배정받는 노드다. data_frozen 역할의 노드는 data_frozen 역할만을 수행하도록 지정하는 것이 좋다.
+
+```HTTP
+PUT [인덱스 이름]/_settings
+{
+  "index.routing.allocation.include._tier_preference": "data_warm,data_hot"
+}
+```
+
+위와 같이 지정하면 data_warm 노드에 인덱스를 할당한다.
+인덱스 생성 시 기본값은 data_content이고 데이터 스트림 내 인덱스 생성 시 기본 값은 data_hot이다.
+
+### 6.9 인덱스 생명 주기 관리
+
+인덱스 생명 주기 관리(Index Lifecycle Management, ILM)은 인덱스를 hot-warm-cold-frozen-delete 페이즈로 구분해서 지정한 기간이 지나면 인덱스를 다음 페이즈로 전환시키고 이 때 지정한 작업을 수행하도록 하는 기능이다.
+
+#### 페이즈 전환
+
+페이즈 전환에는 시간 조건을 사용한다.
+인덱스가 생성된 이후 얼마만큼의 시간이 지났는지, 그리고 현재 페이즈에서 수행해야 하는 액션을 모두 끝냈는지 체크해서 조건을 모두 만족하면 다음 페이즈로 전환한다.
+
+#### 페이즈 액션 수행
+
+indices.lifecycle.poll_interval에 지정된 주기로 인덱스의 상태를 확인하고 필요한 작업을 수행한다.
+
+#### 페이즈 액션 종류
+
+- 롤오버: hot 페이즈에서 수행 가능하다. 지정된 조건을 만족할 때 롤오버를 수행한다.
+- 읽기 전용으로 만들기: hot, warm, cold 페이즈에서 수행 가능하다. 인덱스를 읽기 전용으로 만든다.
+- 세그먼드 병합: hot, warm 페이즈에서 수행 가능하다. 세그먼트를 지정한 개수로 강제 병합한다. hot 페이즈에서 이 액션을 지정하려면 롤오버 액션과 함께 지정해야 한다.
+- shrink: hot,warm 페이즈에서 수행 가능하다. 인덱스를 읽기 전용으로 만들고 shrink를 수행해서 새 인덱스를 만든다. 새 인덱스의 샤드 개수를 직접 지정할 수도 있고, 샤드 하나의 최대 크기를 지정해서 개수를 정하도록 할 수도 있다.
+- 인덱스 우선순위 변경: hot, warm, cold 페이즈에서 수행 가능하다. 인덱스의 복구 우선순위를 변경한다. 값이 클수록 우선적으로 복구된다.
+- 할당: warm, cold 페이즈에서 수행 가능하다. 노드 속성 지정을 통한 인덱스 단위 샤드 할당 필터링 설정을 변경해 어떤 노드가 이 인덱스를 할당받을 수 있는지 변경한다.
+- migrate: warm, cold 페이즈에서 수행 가능하다. 데이터 티어 구조에서 페이즈에 맞는 티어의 데이터 노드로 인덱스를 이동시킨다.
+- 동결: cold 페이즈에서 수행 가능하다. 인덱스 동결 API를 이용해서 인덱스를 동결시킨다. 동결은 인덱스를 읽기 전용으로 만든 뒤 인덱스를 유지하기 위한 오버헤드를 최소화하는 형태로 만들어 다시 할당한다.
+- 스냅샷 대기: delete 페이즈에서 수행 가능하다. 인덱스를 삭제하기 전에 지정한 SLM 정책을 통해 해당 인덱스에 대한 스냅샷 백업이 완료될 떄까지 대기한다.
+- 삭제: delete 페이즈에서 수행 가능하다.
+
+```HTTP
+PUT _ilm/policy/my-policy-test
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "rollover": {
+            "max_age": "1d",
+            "max_primary_shard_size": "4gb"
+          }
+        },
+        "min_age": "0ms"
+      },
+      "warm": {
+        "min_age": "7d",
+        "actions": {
+          "forcemerge": {
+            "max_num_segments": 1
+          },
+          "readonly": {}
+        }
+      },
+      "cold": {
+        "min_age": "14d",
+        "actions": {
+          "migrate": {
+            "enabled": false
+          },
+          "allocate": {
+            "number_of_replicas": 1
+          }
+        }
+      },
+      "delete": {
+        "min_age": "30d",
+        "actions": {
+          "wait_for_snapshot": {
+            "policy": "my-daily-snapshot-policy"
+          },
+          "delete": {}
+        }
+      }
+    } 
+  }
+}
+
+PUT [인덱스 이름]/_settings
+{
+  "index.lifecycle.name": "my-policy-test"
+}
+```
+
+### 6.10 서킷 브레이커
+
+서킷 브레이커는 문제를 발생시킬 만한 무거운 작업의 수행을 사전에 차단한다.
+요청이 어느 정도의 메모리를 사용할지 예상하는 방법과 실제 현재 노드가 사용 중인 메모리를 체크하는 방법을 사용한다.
+
+- 필드 데이터 서킷 브레이커: fiedldata가 메모리에 올라갈 때 얼마만큼의 메모리를 사용할지 예상한다. 기본값은 힙의 40%다.
+- 요청 서킷 브레이커: 요청 하나의 데이터 구조가 메모리를 과다하게 사용하는지 계산한다. 기본값은 힙의 60%다.
+- 실행 중 요청(in-flight request) 서킷 브레이커: 노드에 transport나 HTTP를 통해 들어오는 모든 요청의 길이를 기반으로 메모리 사용량을 계산한다. 메모리 사용량 산정에 요청의 텍스트 원본 길이만을 따지는 것이 아니라 요청 객체를 생성할 때 필요로 하는 메모리도 따진다.
+- 부모 서킷 브레이커: 전체 메모리의 실제 사용량을 기준으로 동작한다. 또한 다른 자식 서킷브레이커가 산정한 예상 메모리 사용량의 총합도 체크한다. indices.breaker.total.use_real_memory 설정을 false로 변경하면 메모리의 실제 사용량은 체크하지 않는다.
+- 스크립트 컴파일 서킷 브레이커: 그 외에 스크립트 컴파일을 제한하는 스크립트 컴파일 서킷 브레이커가 있다.
+
+```HTTP
+PUT _cluster/settings
+{
+  "transient": {
+    "indices": {
+      "breaker": {
+        "fielddata.limit": "30%",
+        "request.limit": "70%",
+        "total.limit": "90%"
+      }
+    },
+    "network": {
+      "breaker": {
+        "inflight_requests.limit": "95%"
+      }
+    }
+  }
+}
+```
+
+이 가운데 실제 메모리를 체크하는 부모 서킷 브레이커의 효과가 좋다.
+
+스크립트 컴파일 서킷 브레이커는 특정 시간 내에 수행할 수 있는 인라인 스크립트 컴파일의 수를 제한한다.
+기본값은 75/5m으로, 매 5분 이내에 75번의 스크립트 컴파일까지 허용한다는 뜻이다.
+
+```HTTP
+PUT _cluster/settings
+{
+  "transient": {
+    "script": {
+      "max_compilations_rate": "50/5m"
+    }
+  }
+}
+```
+
+### 6.11 슬로우 로그 설정
+
+검색이나 색인 작업 시 너무 오랜 시간이 소요되면 별도로 로그를 남기도록 설정할 수 있다.
+
+```HTTP
+PUT _settings
+{
+  "index.search.slowlog": {
+    "threshold": {
+      "query.warn": "10s",
+      "query.info": "5s",
+      "query.debug": "2s",
+      "query.trace": "500ms",
+      "fetch.warn": "1s",
+      "fetch.info": "800ms",
+      "fetch.debug": "500ms",
+      "fetch.trace": "200ms"
+    }
+  }
+}
+
+PUT _settings
+{
+  "index.indexing.slowlog": {
+    "source": "1000",
+    "threshold": {
+      "index.warn": "10s",
+      "index.info": "5s",
+      "index.debug": "2s",
+      "index.trace": "500ms"
+    }
+  }
+}
+
+# 슬로우 로그는 인덱스 단위로도 지정할 수 있다.
+PUT _settings
+{
+  "index.search.slowlog": {
+    "threshold": {
+      "index.warn": "10s",
+      "index.info": "5s",
+      "index.debug": "2s",
+      "index.trace": "500ms"
+    }
+  }
+}
+```
