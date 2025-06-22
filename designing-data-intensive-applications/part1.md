@@ -63,9 +63,6 @@ A service that the system depends on that slows down, becomes unresponsive, or s
 
 Even when operators have the best intentions, humans are known to be unreliable.
 
-Set up detailed and clear monitoring, such as performance metrics and error rates.
-In other engineering this is referred to as telemetry.
-
 ### Scalability
 
 Scalability is the term we use to describe a system's ability to cope with increased load.
@@ -86,6 +83,7 @@ Once you have described the load on your system, you can investigate what happen
 
 Both questions require performance numbers, performance numbers can vary and may be values such as response time, throughput, and more.
 
+Even if you only make the same request over and over again, you'll get a slightly different response time on every try.
 We need to think of response time not as a single value, but as a distribution of values.
 High percentiles of response time(tail latencies) are important because they directly affect the user's experience of the service.
 
@@ -408,7 +406,10 @@ Instead, the encoded data contains field tags, which are number.
 
 #### Avro
 
-```avro
+Apache Avro is another binary encoding format that is interestingly different from Protocol Buffers and Thrift.
+Avro asl uses a schema to specify the structure of the data being encoded. It has two schema languages: one (Avro IDL) intended for human editing, and one that is more easily machine-readable.
+
+```avsc
 record Person {
   string userName
   union { null, long } favoriteNumber = null;
@@ -450,17 +451,48 @@ Binary schema-driven formats like Thrift, Protocol Buffers, and Avro allow compa
 The schemas can be useful for documentation and code generation in statically typed languages.
 However, they have the downside that needs to be decoded before it is human-readable.
 
-#### What is the writer's schema
+#### The writer's schema and the reader's schema
 
-- Large file with lots of records
+With avro, when an application wants to encode some data, it encodes the data using whatever version of the schema it knows about—for example, that schema may be compiled into the application. This is known as the writer's schema.
+
+When an application wants to decode some data, it is expecting the data to be in some schema, which is known as the reader's schema.
+
+The key idea with Avro is that the writer's schema and the reader's schema don't have to be the same—they only need to be compatible.
+
+#### Schema evolution rules
+
+With Avro, forward compatibility means that you an have a new version of the schema as writer and an old version of the schema as reader.
+Conversely, backward compatibility means that you can have a new version of the schema as reader and an old version as writer.
+
+#### But what is the writer's schema?
+
+- Large file with lots of records  
 - Database with individually written records
 - Sending records over a network connection
 
+### The Merits of Schema
+
+- They can be much more compact than the various "binary JSON" variants, since they can omit field names from the encoded data.
+- The schema is a valuable form of documentation, and because the schema is required for decoding, you can be sure that it is up to date.
+- Kepping a database of schemas allows you to check forward and backward compatiblity of schema changes, before anything is deployed.
+- For users of statically typed programming languages, the ability to generate code from the schema is useful, since it enables type checking at compile time
+
 ### Modes of Dataflow
 
-- Dataflow Through Databases  
-  Forward compatibility is often required.
-- Dataflow Through Services: REST and RPC  
-  Backward compatibility is required on request and forward compatibility is required on response.
-- Message-Passing Dataflow  
-  Forward compatibility is required on the producer.
+Compatiblity is a relationship between one process that encodes the data, and another process taht decodes it.
+That's a fairly abstract idea—there are many ways data can flow from one process to antoher.
+
+#### Dataflow Through Databases  
+
+Forward compatibility is often required.
+However, there is an additional snag.
+Say you add a field to a record schema, and the newer code writes a values for that new field to the database.
+Subequently, an older version of the code 
+
+#### Dataflow Through Services: REST and RPC  
+
+Backward compatibility is required on request and forward compatibility is required on response.
+
+#### Message-Passing Dataflow  
+
+Forward compatibility is required on the producer.
