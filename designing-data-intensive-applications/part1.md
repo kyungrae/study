@@ -26,21 +26,21 @@ flowchart
   user@{shape: circle, label: "User"} -- Client requests --> code1[Application code] -- First check if data is cached --> cache@{shape: cyl, label: "In-meory cache"}
   code1 -- Cache misses and writes --> database@{shape: cyl, label: "Primary database"}
   database -- Captures changes to data --> code2[Application code] -- Invalidate or update cache --> cache
-  code1 -- Serach requests--> search@{shape: cyl, label: "Full-text index"}
+  code1 -- Search requests--> search@{shape: cyl, label: "Full-text index"}
   code2 -- Apply updates to searindex --> search
   code1 -- Asynchronous task --> queue@{ shape: das, label: "Message queue" } --> code3[Application code] --send email--> outside@{ shape: dbl-circ, label: "Outside world" }
 ```
 
 ### Reliability
 
-The system should continue to work correctly (perform the correct function at the desired level of performance) even in the face of adversity(hard or soft-ware faults, and event human error).
+The system should continue to work correctly (perform the correct function at the desired level of performance) even in the face of adversity(hard or soft-ware faults, and even human error).
 
 - The application can perform the function that the user expected.
 - It can tolerate the user making mistakes or using the software in unexpected ways.
 - Its performance is good enough for the required use case, under the expected load and data volume.
-- The system prevent unauthorized access and abuse.
+- The system prevents unauthorized access and abuse.
 
-The things that can go wrong are called _faults_, and system that anticipate faults and can cope with them are called _fault-tolerant_ or _resilient_. The former term is slightly misleading: it suggests that we would make a system tolerant of every possible kind of fault, which in reality is not feasible.
+The things that can go wrong are called _faults_, and systems that anticipate faults and can cope with them are called _fault-tolerant_ or _resilient_. The former term is slightly misleading: it suggests that we would make a system tolerant of every possible kind of fault, which in reality is not feasible.
 So it only makes sense to talk about tolerating certain types of faults.
 
 A fault is usually defined as one component of the system deviating from its spec, whereas a failure is when the system as a whole stops providing the required service to the user.
@@ -67,12 +67,12 @@ Even when operators have the best intentions, humans are known to be unreliable.
 
 Scalability is the term we use to describe a system's ability to cope with increased load.
 Note that it is not a one-dimensional label that we can attach to a system.
-Discussing scalabiltiy means considering questions like "If the system grows in a particular way, what are our options for coping with the growth?" and "How can we add computing resources to handle the additional load?"
+Discussing scalabilitiy means considering questions like "If the system grows in a particular way, what are our options for coping with the growth?" and "How can we add computing resources to handle the additional load?"
 
 #### Describing Load
 
 Load can be described with a few numbers which we call load parameters.
-The best choice of parameters depends on the architecture of your system: it may be requests per second to a web server, the ratio of reads to writes in a database, the number of simultaneously active users in chat room, the hit rate on a cache, the distribution of followers per user, or something else.
+The best choice of parameters depends on the architecture of your system: it may be requests per second to a web server, the ratio of reads to writes in a database, the number of simultaneously active users in a chat room, the hit rate on a cache, the distribution of followers per user, or something else.
 
 #### Describing Performance
 
@@ -136,7 +136,7 @@ MapReduce is a fairly low-level programming model for distributed execution on a
 ### Graph-Like Data Model
 
 As the connection within your data becomes more complex, it becomes more natural to start modeling your data as a graph.
-Graph model are not limited to such homogeneous data: an equally powerful use of graphs is to provide a consistent way of storing completely different types of objects in a single datastore.
+Graph models are not limited to such homogeneous data: an equally powerful use of graphs is to provide a consistent way of storing completely different types of objects in a single datastore.
 
 #### Property Graphs
 
@@ -204,7 +204,7 @@ JOIN born_in_usa ON vertices.vertex_id = lives_in_europe.vertex_id
 ## 3. Storage and Retrieval
 
 You do need to select a storage engine that is appropriate for your application, from the many that are available.
-In order to tune a storage engine to perform well on your kind of workload, you need to have a rought idea of what the storage engine is doing under the hood.
+In order to tune a storage engine to perform well on your kind of workload, you need to have a rough idea of what the storage engine is doing under the hood.
 
 ### Data Structures That Power your Database
 
@@ -213,7 +213,7 @@ The general idea behind indexes is to keep some additional metadata on the side,
 #### Hash Indexes
 
 Keep an in-memory hash map where every key is mapped to a byte offset in the data file—
-the the location at which the value can be found.
+the location at which the value can be found.
 
 ![hash index](./images/hash_index.png)
 
@@ -227,7 +227,7 @@ We can then perform compaction on these segments.
 
 Require that the sequence of key-value pairs is sorted by key.
 We call this format Sorted String Table (SSTable).
-We also require that each key only appears once within each merged segment file (the compaction process ensure that).
+We also require that each key only appears once within each merged segment file (the compaction process ensures that).
 
 - In-memory indexes can be sparse because of sorting.
 - It uses a red-black tree or AVL tree(memtable) to maintain a sorted structure on disk.
@@ -235,13 +235,13 @@ We also require that each key only appears once within each merged segment file 
 ##### Performance optimizations
 
 - The LSM-tree algorithm can be slow when looking up keys that do not exist in the database. A Bloom filter is a memory-efficient data structure for approximating the contents of a set.
-- There are strategies to determin the order and timing of how SSTables are compacted and merged.
+- There are strategies to determine the order and timing of how SSTables are compacted and merged.
   - In size-tiered compaction, newer and smaller SSTables are successively merged into older and larger SSTables.
-  - In leveled compaction, the key range is split up into smaller SSTables and older data is moved into separatee "levels," which allows the compaction to proceed more incrementally and use less disk space.
+  - In leveled compaction, the key range is split up into smaller SSTables and older data is moved into separate "levels," which allows the compaction to proceed more incrementally and use less disk space.
 
 #### B-Tree
 
-The log-structured indexs we saw earlier break the database down into variable-size segments, typically serveral megabytes or more in size, and always write a segment seuentially.
+The log-structured indexes we saw earlier break the database down into variable-size segments, typically several megabytes or more in size, and always write a segment sequentially.
 B-trees break the database down into fixed-size blocks or pages and read or write one page at a time.
 
 One page is designed as the root of the B-tree.
@@ -323,15 +323,15 @@ Thus, the Bigtable model is still mostly row-oriented.
 
 One way of creating such a cache is a materialized view.
 In a relational data model, it is often defined like a standard (virtual) view: a table-like object whose contents are the results of some query.
-The difference is that materialized view is an actual copy of the query results, written to disk, whereas a virtual view is just a shortcut for writing queries.
+The difference is that a materialized view is an actual copy of the query results, written to disk, whereas a virtual view is just a shortcut for writing queries.
 
 ## 4. Encoding and Evolution
 
-Application inevitably change over time.
+Applications inevitably change over time.
 We should aim to build systems that make it easy to adapt to change(Evolvability).
 
 When a data format or schema changes, a corresponding change to application code often needs to happen.
-However, code changes often cannot happen instanteously.
+However, code changes often cannot happen instantaneously.
 In order for the system to continue running smoothly, we need to maintain compatibility in both directions.
 
 - Backward compatibility  
@@ -398,8 +398,8 @@ message Person {
 
 Thrift and Protocol Buffers each come with a code generation tool that takes a schema definition like the ones shown here, and produces classes that implement the schema in various programming languages.
 
-The big difference compared to MessagePack is that there are no field name.
-Instead, the encoded data contains field tags, which are number.
+The big difference compared to MessagePack is that there are no field names.
+Instead, the encoded data contains field tags, which are numbers.
 
 ![Thrift](./images/thrift.png)
 ![Protocol buffer](./images/protocol_buffer.png)
@@ -407,7 +407,7 @@ Instead, the encoded data contains field tags, which are number.
 #### Avro
 
 Apache Avro is another binary encoding format that is interestingly different from Protocol Buffers and Thrift.
-Avro asl uses a schema to specify the structure of the data being encoded. It has two schema languages: one (Avro IDL) intended for human editing, and one that is more easily machine-readable.
+Avro also uses a schema to specify the structure of the data being encoded. It has two schema languages: one (Avro IDL) intended for human editing, and one that is more easily machine-readable.
 
 ```avsc
 record Person {
@@ -461,12 +461,12 @@ The key idea with Avro is that the writer's schema and the reader's schema don't
 
 #### Schema evolution rules
 
-With Avro, forward compatibility means that you an have a new version of the schema as writer and an old version of the schema as reader.
+With Avro, forward compatibility means that you can have a new version of the schema as writer and an old version of the schema as reader.
 Conversely, backward compatibility means that you can have a new version of the schema as reader and an old version as writer.
 
 #### But what is the writer's schema?
 
-- Large file with lots of records  
+- Large file with lots of records
 - Database with individually written records
 - Sending records over a network connection
 
@@ -474,25 +474,31 @@ Conversely, backward compatibility means that you can have a new version of the 
 
 - They can be much more compact than the various "binary JSON" variants, since they can omit field names from the encoded data.
 - The schema is a valuable form of documentation, and because the schema is required for decoding, you can be sure that it is up to date.
-- Kepping a database of schemas allows you to check forward and backward compatiblity of schema changes, before anything is deployed.
+- Keeping a database of schemas allows you to check forward and backward compatibility of schema changes, before anything is deployed.
 - For users of statically typed programming languages, the ability to generate code from the schema is useful, since it enables type checking at compile time
 
 ### Modes of Dataflow
 
-Compatiblity is a relationship between one process that encodes the data, and another process taht decodes it.
-That's a fairly abstract idea—there are many ways data can flow from one process to antoher.
+Compatibility is a relationship between one process that encodes the data, and another process that decodes it.
+That's a fairly abstract idea—there are many ways data can flow from one process to another.
 
-#### Dataflow Through Databases  
+#### Dataflow Through Databases
 
-Forward compatibility is often required.
-However, there is an additional snag.
-Say you add a field to a record schema, and the newer code writes a values for that new field to the database.
-Subequently, an older version of the code 
+Backward compatibility is clearly necessary here; otherwise your future self won't be able to decode what you previously wrote.
 
-#### Dataflow Through Services: REST and RPC  
+##### Different values written at different times
+
+Most relational databases allow simple schema changes, such as adding a new column with null default value, without rewriting existing data.
+When an old row is read, the database fills in nulls for any columns that are missing from the encoded data on disk.
+
+##### Archival storage
+
+The data dump will typically be encoded using the latest schema, even if the original encoding in the source database contained a mixture of schema versions from different eras.
+
+#### Dataflow Through Services: REST and RPC
 
 Backward compatibility is required on request and forward compatibility is required on response.
 
-#### Message-Passing Dataflow  
+#### Message-Passing Dataflow
 
 Forward compatibility is required on the producer.
