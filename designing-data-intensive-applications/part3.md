@@ -255,8 +255,103 @@ New execution engines  for distributed batch computations handle an entire workf
 Unlike in MapReduce, these functions need not take the strict roles of alternating map and reduce, but instead can be assembled in more flexible wasy.
 We call these functions operators.
 
-#### High-Level APIs and Language
-
 ## 11. Stream Processing
+
+The problem with daily batch processes is that changes in the input are only reflected in the output a day later.
+To reduce the delay, we can run the processing more frequently—say, processing a second's worth of data at the end of every second—or even continuously, abandoning the fixed time slices entirely and simply processing every event as it happens.
+That is the idea behind stream processing.
+
+### Transmitting Event Streams
+
+In principle, a file or database is sufficient to connect producers and consumers: a producer writes every event that it generates to the datastore, and each consumer periodically polls the datastore to check for events that have appeared since it last ran.
+
+However, when moving toward continual processing with low delays, polling becomes expensive if the datastore is not designed for this kind of usage.
+The more often you poll, the lower the percentage of requests that return new events, and thus the higher the overheads become.
+Instead, it is better for consumers to be notified when new events appear.
+
+#### Message Systems
+
+A direct communication channel like a Unix pipe or TCP connection between producer and consumer would be a simple way of implementing a messaging system.
+However, most messaging systems expand on this basic model.
+In particular, Unix pipes and TCP connect exactly one sender with one recipient, whereas a messaging system allows multiple producer nodes to send messages to the same topic and allows multiple consumer nodes to receive messages in a topic
+
+##### Direct messaging from producers to consumers
+
+A number of messaging systems use direct network communication between producers and consumers without going via intermediary nodes:
+
+- If the consumer exposes a service on the network, producers can make a direct HTTP or RPC request to push messages to the consumer.
+This is the idea behind webhooks, a pattern in which a callback URL of one service is registered with another service, and it makes a request to that URL whenever an event occurs.
+
+If a consumer is offline, it may miss messages that were sent while it is unreachable.
+Some protocols allow the producer to retry failed message deliveries.
+
+##### Message brokers
+
+A widely used alternative is to send messages via a message broker, which is essentially a kind of database that is optimized for handling message streams.
+It runs as a server, with producers and consumers connecting to it as clients.
+Producers write messages to the broker, and consumers receive them by reading them from the broker.
+
+By centralizing the data in the broker, these systems can more easily tolerate clients that come and go, and the question of durability is moved to the broker instead.
+Some message brokers only keep messages in memory, while others write them to disk so that they are not lost in case of a broker crash.
+Faced with slow consumers, they generally allow unbounded queuing.
+
+###### Multiple consumers
+
+- Load balancing  
+Each message is delivered to one of the consumers, so the consumers can share the work of processing the messages in the topic.
+The broker may assign messages to consumers arbitrarily.
+- Fan-out  
+Each message is delivered to all of the consumers.
+Fan-out allows several independent consumers to each "tune in" to the same broadcast of messages, without affecting each other.
+
+![load balancing vs fan-out](./images/load_balancing_vs_fan-out.png)
+
+##### Acknowledgments and redelivery
+
+Consumers may crash at any time, so it could happen that a broker delivers a message to a consumer but the consumer never processes it, or only partially processes it before crashing.
+In order to ensure that the message is not lost, message brokers use acknowledgements: a client must explicitly tell the broker when it has finished processing a message so that the broker can remove it from the queue.
+
+If the connection to a client is closed or times out without the broker receiving an acknowledgment, it assumes that the message was not processed, and therefore it delivers the message again to another consumer.
+
+#### Partitioned Logs
+
+A key feature of batch processes is that you can run them repeatedly, experimenting with the processing steps, without risk of damaging the input.
+This is not the cas with AMQP/JMS-style messaging: receiving a message is destructive if the acknowledgment causes it to be deleted from the broker, so you cannot run the same consumer again and expect to get the same result.
+
+Why can we not have a hybrid, combining the durable storage approach of databases with the low-latency notification facilities of messaging? This is the idea behind log-based message brokers.
+
+##### Using logs for message storage
+
+In order to scale to higher throughput than a single disk can offer, the log can be partitioned.
+Different partitions can then be hosted on different machines, making each partition a separate log that can be read and written independently from other partitions.
+A topic can then be defined as a group of partitions that all carry messages of the same type.
+
+Within each partition, the broker assigns a monotonically increasing sequence number, of offset, to every message.
+Such sequence number makes sense because a partition is append-only, so the messages within a partition are totally ordered.
+There is no ordering guarantee across different partitions.
+
+![offset by partition](./images/offset-by-partition.png)
+
+##### Logs compared to traditional messaging
+
+The log-based approach trivially supports fan-out messaging, because several consumers can independently read the log without affecting each other—reading a message does not delete it from the log.
+To achieve load balancing across a group of consumers, instead of assigning individual messages to consumer clients, the broker can assign entire partitions to nodes in the consumer group.
+
+Each client then consumes all the messages in the partitions it has been assigned.
+Typically, when a consumer has been assigned a log partition, it reads the messages in the partition sequentially, in a straightforward single-threaded manner.
+
+- The number of nodes sharing the work of consuming a topic can be at most the number of log partitions in that topic, because messages within the same partition are delivered to the same node.
+- If a single message is slow to process, it holds up the processing of subsequent messages in that partition.
+
+Thus in situations where messages may be expensive to process and you want to parallelize processing on a message-by-message basis, and where message ordering is not so important, the JMS/AMQP style of message broker is preferable.
+On the other hand, in situations with high message throughput, where each message is fast to process and where message ordering is important, the log-based approach works very well.
+
+##### Consumer offsets
+
+##### Disk space usage
+
+### Databases and Streams
+
+### Processing Streams
 
 ## 12. The Future of Data Systems
